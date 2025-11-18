@@ -32,6 +32,7 @@ set X68SOUND_SUB_BASS=2
 set X68SOUND_FM_HARMONIC=3
 set X68SOUND_FM_WARMTH=3
 set X68SOUND_FM_CHORUS=2
+set X68SOUND_EARLY_REFLECTIONS=40
 set X68SOUND_REVERB=3
 set X68SOUND_REVERB_DECAY=80
 set X68SOUND_REVERB_MIX=25
@@ -53,6 +54,7 @@ echo   - サブハーモニックベース: Medium（重厚な低音）
 echo   - FM倍音エンハンサー: Rich（豊かな倍音）
 echo   - FM温かみエフェクト: Warm（温かく柔らかい音）
 echo   - FMコーラス: Rich（アナログシンセ風）
+echo   - 初期反射音: Rich（アナログ機材の空間感）
 echo   - リバーブ: Large Room（広い空間感）
 echo.
 echo 【期待される効果】

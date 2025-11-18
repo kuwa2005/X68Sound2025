@@ -33,6 +33,9 @@ set X68SOUND_FM_HARMONIC=2
 set X68SOUND_FM_WARMTH=2
 set X68SOUND_STEREO_WIDTH=120
 set X68SOUND_CROSSFEED=30
+set X68SOUND_CROSSFEED_DELAY=2
+set X68SOUND_HAAS_EFFECT=50
+set X68SOUND_HAAS_DELAY=5
 set X68SOUND_REVERB=1
 set X68SOUND_REVERB_MIX=15
 
@@ -54,6 +57,7 @@ echo   - FM倍音エンハンサー: Medium
 echo   - FM温かみエフェクト: Medium
 echo   - ステレオ幅: 120%%（やや広め）
 echo   - クロスフィード: Natural（圧迫感軽減）
+echo   - ハース効果: Medium（立体音響）
 echo   - リバーブ: Small Room（控えめな空間感）
 echo.
 echo 【期待される効果】

@@ -39,7 +39,12 @@ struct X68SoundConfig {
 	int fm_warmth_level;          // FM warmth/analog feel (0=OFF, 1-4=intensity, default: 0)
 	int fm_chorus_depth;          // FM chorus effect (0=OFF, 1=Subtle, 2=Rich, 3=Wide, default: 0)
 	int stereo_width;             // Stereo width percentage (100=normal, 150=wide, 200=ultra, default: 100)
-	int crossfeed_level;          // Crossfeed for headphones (0=OFF, 30=natural, 50=strong, default: 0)
+	int crossfeed_level;          // Crossfeed for headphones (0-100%, 0=OFF, 30=natural, 50=strong, default: 0)
+	int crossfeed_delay;          // Crossfeed delay in 0.1ms units (1-10, default: 2 = 0.2ms)
+	int center_channel_width;     // Center channel widening (0-100%, 0=OFF/normal, 70=natural, default: 0)
+	int haas_effect_level;        // Haas precedence effect (0-100%, 0=OFF, 50=subtle, default: 0)
+	int haas_delay;               // Haas delay in 0.1ms units (1-10, default: 5 = 0.5ms)
+	int early_reflections;        // Early reflections intensity (0-100%, 0=OFF, 30=subtle, default: 0)
 	int reverb_type;              // Reverb type (0=OFF, 1=Small, 2=Medium, 3=Large, 4=Hall, default: 0)
 	int reverb_decay;             // Reverb decay time (10-95%, default: 70)
 	int reverb_mix;               // Reverb wet/dry mix (0-50%, default: 20)
@@ -68,6 +73,11 @@ X68SoundConfig g_Config = {
 	0,      // fm_chorus_depth
 	100,    // stereo_width
 	0,      // crossfeed_level
+	2,      // crossfeed_delay (0.2ms)
+	0,      // center_channel_width
+	0,      // haas_effect_level
+	5,      // haas_delay (0.5ms)
+	0,      // early_reflections
 	0,      // reverb_type
 	70,     // reverb_decay
 	20,     // reverb_mix
@@ -116,6 +126,11 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.fm_chorus_depth = GetEnvInt("X68SOUND_FM_CHORUS", 0);
 	g_Config.stereo_width = GetEnvInt("X68SOUND_STEREO_WIDTH", 100);
 	g_Config.crossfeed_level = GetEnvInt("X68SOUND_CROSSFEED", 0);
+	g_Config.crossfeed_delay = GetEnvInt("X68SOUND_CROSSFEED_DELAY", 2);
+	g_Config.center_channel_width = GetEnvInt("X68SOUND_CENTER_WIDTH", 0);
+	g_Config.haas_effect_level = GetEnvInt("X68SOUND_HAAS_EFFECT", 0);
+	g_Config.haas_delay = GetEnvInt("X68SOUND_HAAS_DELAY", 5);
+	g_Config.early_reflections = GetEnvInt("X68SOUND_EARLY_REFLECTIONS", 0);
 	g_Config.reverb_type = GetEnvInt("X68SOUND_REVERB", 0);
 	g_Config.reverb_decay = GetEnvInt("X68SOUND_REVERB_DECAY", 70);
 	g_Config.reverb_mix = GetEnvInt("X68SOUND_REVERB_MIX", 20);
@@ -170,6 +185,16 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.stereo_width > 200) g_Config.stereo_width = 200;
 	if (g_Config.crossfeed_level < 0) g_Config.crossfeed_level = 0;
 	if (g_Config.crossfeed_level > 100) g_Config.crossfeed_level = 100;
+	if (g_Config.crossfeed_delay < 1) g_Config.crossfeed_delay = 1;
+	if (g_Config.crossfeed_delay > 10) g_Config.crossfeed_delay = 10;
+	if (g_Config.center_channel_width < 0) g_Config.center_channel_width = 0;
+	if (g_Config.center_channel_width > 100) g_Config.center_channel_width = 100;
+	if (g_Config.haas_effect_level < 0) g_Config.haas_effect_level = 0;
+	if (g_Config.haas_effect_level > 100) g_Config.haas_effect_level = 100;
+	if (g_Config.haas_delay < 1) g_Config.haas_delay = 1;
+	if (g_Config.haas_delay > 10) g_Config.haas_delay = 10;
+	if (g_Config.early_reflections < 0) g_Config.early_reflections = 0;
+	if (g_Config.early_reflections > 100) g_Config.early_reflections = 100;
 	if (g_Config.reverb_type < 0) g_Config.reverb_type = 0;
 	if (g_Config.reverb_type > 4) g_Config.reverb_type = 4;
 	if (g_Config.reverb_decay < 10) g_Config.reverb_decay = 10;

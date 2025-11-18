@@ -32,6 +32,8 @@ set X68SOUND_SUB_BASS=2
 set X68SOUND_FM_HARMONIC=2
 set X68SOUND_FM_WARMTH=2
 set X68SOUND_STEREO_WIDTH=150
+set X68SOUND_CENTER_WIDTH=70
+set X68SOUND_EARLY_REFLECTIONS=30
 set X68SOUND_REVERB=2
 set X68SOUND_REVERB_DECAY=70
 set X68SOUND_REVERB_MIX=20
@@ -53,6 +55,8 @@ echo   - サブハーモニックベース: Medium（低域補完）
 echo   - FM倍音エンハンサー: Medium
 echo   - FM温かみエフェクト: Medium
 echo   - ステレオ幅: 150%% Wide
+echo   - センターチャンネル幅拡張: 70%%（立体音響）
+echo   - 初期反射音: 30%%（空間の深み）
 echo   - リバーブ: Medium Room
 echo.
 echo 【期待される効果】

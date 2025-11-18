@@ -608,6 +608,96 @@ set X68SOUND_STEREO_WIDTH=150
 set X68SOUND_CROSSFEED=30
 ```
 
+### X68SOUND_CROSSFEED_DELAY
+クロスフィード遅延時間
+
+- **デフォルト値**: `2` (0.2ms)
+- **有効範囲**: `1` ～ `10` (0.1ms単位)
+- **説明**: クロスフィード効果の遅延時間を調整します
+  - `1`: 0.1ms（最小遅延）
+  - `2`: 0.2ms（デフォルト、自然な広がり）
+  - `5`: 0.5ms（より明確な空間感）
+  - `10`: 1.0ms（最大遅延、広い音場）
+- **効果**: 遅延時間が長いほど空間の広がりが増しますが、位相のズレも大きくなります
+- **推奨**: X68SOUND_CROSSFEEDと組み合わせて使用
+
+**設定例**:
+```batch
+set X68SOUND_CROSSFEED_DELAY=2
+```
+
+### X68SOUND_CENTER_WIDTH
+センターチャンネル幅拡張
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `100`
+- **説明**: センター定位の音を左右に広げて立体感を向上させます
+  - `0`: オフ（通常のL/C/R定位）
+  - `30`: 控えめな拡張
+  - `70`: 自然な拡張（推奨）
+  - `100`: 最大拡張
+- **効果**: X68000のL/C/R音源を擬似的により広いステレオ音場に変換
+- **注意**: センター定位の音が左右に広がるため、音像がぼやける場合があります
+
+**設定例**:
+```batch
+set X68SOUND_CENTER_WIDTH=70
+```
+
+### X68SOUND_HAAS_EFFECT
+ハース効果 - 先行音効果による空間演出
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `100`
+- **説明**: 先行音効果（Precedence Effect）を利用した立体音響効果
+  - `0`: オフ
+  - `30`: 微妙な空間感
+  - `50`: 自然な空間広がり（推奨）
+  - `100`: 強い空間効果
+- **効果**: 音に奥行きと広がりを加え、より立体的なサウンドステージを実現
+- **技術**: 片方のチャンネルに微小な遅延を加えることで、人間の聴覚の先行音効果を利用
+
+**設定例**:
+```batch
+set X68SOUND_HAAS_EFFECT=50
+```
+
+### X68SOUND_HAAS_DELAY
+ハース効果遅延時間
+
+- **デフォルト値**: `5` (0.5ms)
+- **有効範囲**: `1` ～ `10` (0.1ms単位)
+- **説明**: ハース効果の遅延時間を調整します
+  - `1`: 0.1ms（最小遅延、微妙な効果）
+  - `5`: 0.5ms（デフォルト、自然な空間感）
+  - `10`: 1.0ms（最大遅延、明確な空間効果）
+- **効果**: 遅延時間が0.5-1.0msの範囲で最も自然な先行音効果が得られます
+- **推奨**: X68SOUND_HAAS_EFFECTと組み合わせて使用
+
+**設定例**:
+```batch
+set X68SOUND_HAAS_DELAY=5
+```
+
+### X68SOUND_EARLY_REFLECTIONS
+初期反射音 - 部屋の初期反射シミュレーション
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `100`
+- **説明**: 部屋の壁からの初期反射音を加えて空間の深みを演出
+  - `0`: オフ
+  - `20`: 微妙な空間感
+  - `30`: 自然な部屋の響き（推奨）
+  - `50`: 明確な反射音
+  - `100`: 強い反射音効果
+- **効果**: リバーブとは異なり、初期の反射音のみを加えることで、音に奥行きと空間を感じさせます
+- **技術**: 複数の遅延タップ（5ms, 7.5ms, 10ms, 13ms）を使って部屋の壁からの反射をシミュレート
+
+**設定例**:
+```batch
+set X68SOUND_EARLY_REFLECTIONS=30
+```
+
 ### X68SOUND_REVERB
 リバーブタイプ - 空間シミュレーション
 
@@ -695,6 +785,8 @@ set X68SOUND_SUB_BASS=2
 set X68SOUND_FM_HARMONIC=2
 set X68SOUND_FM_WARMTH=2
 set X68SOUND_STEREO_WIDTH=150
+set X68SOUND_CENTER_WIDTH=70
+set X68SOUND_EARLY_REFLECTIONS=30
 set X68SOUND_REVERB=2
 set X68SOUND_REVERB_DECAY=70
 set X68SOUND_REVERB_MIX=20
@@ -730,6 +822,9 @@ set X68SOUND_FM_HARMONIC=2
 set X68SOUND_FM_WARMTH=2
 set X68SOUND_STEREO_WIDTH=120
 set X68SOUND_CROSSFEED=30
+set X68SOUND_CROSSFEED_DELAY=2
+set X68SOUND_HAAS_EFFECT=50
+set X68SOUND_HAAS_DELAY=5
 set X68SOUND_REVERB=1
 set X68SOUND_REVERB_MIX=15
 ```
@@ -747,6 +842,7 @@ set X68SOUND_SUB_BASS=2
 set X68SOUND_FM_HARMONIC=3
 set X68SOUND_FM_WARMTH=3
 set X68SOUND_FM_CHORUS=2
+set X68SOUND_EARLY_REFLECTIONS=40
 set X68SOUND_REVERB=3
 set X68SOUND_REVERB_DECAY=80
 set X68SOUND_REVERB_MIX=25
@@ -780,6 +876,11 @@ set X68SOUND_REVERB_MIX=25
 | `X68SOUND_FM_CHORUS` | 0 | 0-3 | FMコーラスエフェクト |
 | `X68SOUND_STEREO_WIDTH` | 100 | 50-200 | ステレオ幅調整（%） |
 | `X68SOUND_CROSSFEED` | 0 | 0-100 | クロスフィード（ヘッドホン最適化） |
+| `X68SOUND_CROSSFEED_DELAY` | 2 | 1-10 | クロスフィード遅延（0.1ms単位） |
+| `X68SOUND_CENTER_WIDTH` | 0 | 0-100 | センターチャンネル幅拡張 |
+| `X68SOUND_HAAS_EFFECT` | 0 | 0-100 | ハース効果（先行音効果） |
+| `X68SOUND_HAAS_DELAY` | 5 | 1-10 | ハース効果遅延（0.1ms単位） |
+| `X68SOUND_EARLY_REFLECTIONS` | 0 | 0-100 | 初期反射音（部屋の響き） |
 | `X68SOUND_REVERB` | 0 | 0-4 | リバーブタイプ |
 | `X68SOUND_REVERB_DECAY` | 70 | 10-95 | リバーブディケイ（残響時間%） |
 | `X68SOUND_REVERB_MIX` | 20 | 0-50 | リバーブミックス（Wet/Dry%） |
