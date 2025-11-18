@@ -98,6 +98,7 @@ inline void Pcm8::Reset() {
 	InpPcm = InpPcm_prev = OutPcm = 0;
 	OutInpPcm = OutInpPcm_prev = 0;
 	PrevInpPcm = 0;		// For linear interpolation
+	CurrentVolume = Volume;	// Reset CurrentVolume to match Volume to prevent discontinuity
 
 	N1Data = 0;
 	N1DataFlag = 0;
@@ -566,8 +567,28 @@ inline int	Pcm8::Out(void *adrs, int mode, int len) {
 			return GetRest();
 		} else {
 			DmaMtc = 0;
+			DebugLog(2, "[Pcm8::Out] STOP: len=0, clearing DmaMtc\n");
 			return 0;
 		}
+	}
+	DebugLog(2, "[Pcm8::Out] START: adrs=%p, mode=0x%06X, len=%d\n", adrs, mode, len);
+	DebugLog(2, "  Before Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+		Volume, CurrentVolume, OutPcm, OutInpPcm);
+	// Log first few bytes of sample data to identify which sample is being played
+	if (adrs != NULL) {
+		unsigned char *data = (unsigned char *)adrs;
+		int logBytes = (len < 16) ? len : 16;
+		DebugLog(2, "  Sample data (first %d bytes):", logBytes);
+		for (int i = 0; i < logBytes; i++) {
+			int byte = MemRead(data + i);
+			if (byte != -1) {
+				DebugLog(2, " %02X", byte);
+			} else {
+				DebugLog(2, " ??");
+				break;
+			}
+		}
+		DebugLog(2, "\n");
 	}
 				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
@@ -576,6 +597,8 @@ inline int	Pcm8::Out(void *adrs, int mode, int len) {
 	if ((mode&3) != 0) {
 		DmaMtc = len;
 		Reset();
+		DebugLog(2, "  After Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+			Volume, CurrentVolume, OutPcm, OutInpPcm);
 		AdpcmReg = 0x47;
 		DmaOcr = 0;
 	}
@@ -587,9 +610,13 @@ inline int	Pcm8::Aot(void *tbl, int mode, int cnt) {
 			return GetRest();
 		} else {
 			DmaMtc = 0;
+			DebugLog(2, "[Pcm8::Aot] STOP: cnt=0, clearing DmaMtc\n");
 			return 0;
 		}
 	}
+	DebugLog(2, "[Pcm8::Aot] START: tbl=%p, mode=0x%06X, cnt=%d\n", tbl, mode, cnt);
+	DebugLog(2, "  Before Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+		Volume, CurrentVolume, OutPcm, OutInpPcm);
 				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaBar = (unsigned char *)tbl;
@@ -598,12 +625,17 @@ inline int	Pcm8::Aot(void *tbl, int mode, int cnt) {
 	if ((mode&3) != 0) {
 		DmaArrayChainSetNextMtcMar();
 		Reset();
+		DebugLog(2, "  After Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+			Volume, CurrentVolume, OutPcm, OutInpPcm);
 		AdpcmReg = 0x47;
 		DmaOcr = 0x08;
 	}
 	return 0;
 }
 inline int	Pcm8::Lot(void *tbl, int mode) {
+	DebugLog(2, "[Pcm8::Lot] START: tbl=%p, mode=0x%06X\n", tbl, mode);
+	DebugLog(2, "  Before Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+		Volume, CurrentVolume, OutPcm, OutInpPcm);
 				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaBar = (unsigned char *)tbl;
@@ -611,6 +643,8 @@ inline int	Pcm8::Lot(void *tbl, int mode) {
 	if ((mode&3) != 0) {
 		DmaLinkArrayChainSetNextMtcMar();
 		Reset();
+		DebugLog(2, "  After Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+			Volume, CurrentVolume, OutPcm, OutInpPcm);
 		AdpcmReg = 0x47;
 		DmaOcr = 0x0c;
 	}
