@@ -272,10 +272,24 @@ inline int	Adpcm::DmaGetByte() {
 		int mem;
 		mem = MemRead(Mar);
 		if (mem == -1) {
+			static int dmaErrorCount = 0;
+			if (dmaErrorCount < 5) {
+				DebugLog("[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
+					(unsigned int)(uintptr_t)Mar, dmaErrorCount);
+				dmaErrorCount++;
+			}
 			DmaError(0x09);	// Bus error (destination address/counter)
 			return 0x80000000;
 		}
 		DmaLastValue = mem;
+
+		static int dmaReadCount = 0;
+		if (dmaReadCount < 10) {
+			DebugLog("[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
+				(unsigned int)(uintptr_t)Mar, mem, dmaReadCount);
+			dmaReadCount++;
+		}
+
 		Mar += MACTBL[(DmaReg[0x06]>>2)&3];
 		*(unsigned char **)&DmaReg[0x0C] = bswapl(Mar);
 	}
@@ -360,6 +374,12 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm() {
+	static int getPcmCallCount = 0;
+	if (getPcmCallCount < 5) {
+		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, getPcmCallCount);
+		getPcmCallCount++;
+	}
+
 	if (AdpcmReg & 0x80) {		// ADPCM stop
 		return 0x80000000;
 	}
@@ -405,6 +425,12 @@ inline int Adpcm::GetPcm() {
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm62() {
+	static int getPcm62CallCount = 0;
+	if (getPcm62CallCount < 5) {
+		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, getPcm62CallCount);
+		getPcm62CallCount++;
+	}
+
 	if (AdpcmReg & 0x80) {		// ADPCM stop
 		return 0x80000000;
 	}
