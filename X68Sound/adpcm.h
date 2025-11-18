@@ -565,10 +565,10 @@ inline int Adpcm::GetPcm() {
 	int result = (OutPcm*TotalVolume)>>8;
 
 	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
-	// The downstream code multiplies by 26, then applies IIR filters. Values above ~50000
-	// can cause filter state buildup and oscillation, resulting in high-pitched beeps.
-	// Balance between preventing artifacts and maintaining dynamic range.
-	const int RESULT_LIMIT = 50000;
+	// The downstream code multiplies by 26, then applies IIR filters. Testing shows that
+	// values above 50000 still cause filter oscillation and beeps. Lowered to 30000 based
+	// on user feedback. This matches the normal operating range seen in logs (30000-40000).
+	const int RESULT_LIMIT = 30000;
 	int result_saturated = 0;
 	if (result > RESULT_LIMIT) {
 		result = RESULT_LIMIT;
@@ -725,10 +725,10 @@ inline int Adpcm::GetPcm62() {
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
 
 	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
-	// The downstream code multiplies by 26, then applies IIR filters. Values above ~50000
-	// can cause filter state buildup and oscillation, resulting in high-pitched beeps.
-	// Balance between preventing artifacts and maintaining dynamic range.
-	const int RESULT_LIMIT = 50000;
+	// The downstream code multiplies by 26, then applies IIR filters. Testing shows that
+	// values above 50000 still cause filter oscillation and beeps. Lowered to 30000 based
+	// on user feedback. This matches the normal operating range seen in logs (30000-40000).
+	const int RESULT_LIMIT = 30000;
 	int result_saturated = 0;
 	if (result > RESULT_LIMIT) {
 		result = RESULT_LIMIT;
