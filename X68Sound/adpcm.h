@@ -129,6 +129,24 @@ inline void Adpcm::Reset() {
 
 
 inline void Adpcm::DmaError(unsigned char errcode) {
+	// Enhanced DMA error logging
+	if (g_Config.debug_log_level >= 2) {
+		const char *error_desc = "";
+		switch (errcode) {
+			case 0x09: error_desc = "Bus error (destination address/counter)"; break;
+			case 0x0B: error_desc = "Bus error (base address/counter)"; break;
+			case 0x0D: error_desc = "Count error (destination address/counter)"; break;
+			default: error_desc = "Unknown error"; break;
+		}
+		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		unsigned short mtc = bswapw(*(unsigned short *)&DmaReg[0x0A]);
+		unsigned char *bar = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+		unsigned short btc = bswapw(*(unsigned short *)&DmaReg[0x1A]);
+		DebugLog(2, "[ADPCM DMA ERROR] errcode=0x%02X: %s\n", errcode, error_desc);
+		DebugLog(2, "  MAR=0x%08X, MTC=%d, BAR=0x%08X, BTC=%d, DmaReg[0x07]=0x%02X\n",
+			(unsigned int)(uintptr_t)mar, mtc, (unsigned int)(uintptr_t)bar, btc, DmaReg[0x07]);
+	}
+
 	DmaReg[0x00] &= 0xF7;		// ACT=0
 	DmaReg[0x00] |= 0x90;		// COC=ERR=1
 	DmaReg[0x01] = errcode;		// CER=errorcode
@@ -139,6 +157,14 @@ inline void Adpcm::DmaError(unsigned char errcode) {
 	}
 }
 inline void Adpcm::DmaFinish() {
+	// Enhanced DMA completion logging
+	if (g_Config.debug_log_level >= 3) {
+		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		unsigned short mtc = bswapw(*(unsigned short *)&DmaReg[0x0A]);
+		DebugLog(3, "[ADPCM DMA FINISH] Transfer complete. MAR=0x%08X, MTC=%d\n",
+			(unsigned int)(uintptr_t)mar, mtc);
+	}
+
 	DmaReg[0x00] &= 0xF7;		// ACT=0
 	DmaReg[0x00] |= 0x80;		// COC=1
 	if (DmaReg[0x07] & 0x08) {	// INT==1?
@@ -186,6 +212,12 @@ inline int Adpcm::DmaArrayChainSetNextMtcMar() {
 	mem4 = MemRead(Bar++);
 	mem5 = MemRead(Bar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5) == -1) {
+		if (g_Config.debug_log_level >= 2) {
+			unsigned char *bar_orig = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+			unsigned short btc = bswapw(*(unsigned short *)&DmaReg[0x1A]);
+			DebugLog(2, "[ADPCM DMA ARRAY CHAIN] MemRead failed in array chain at BAR=0x%08X, BTC=%d\n",
+				(unsigned int)(uintptr_t)bar_orig, btc);
+		}
 			DmaError(0x0B);		// Bus error (base address/counter)
 		return 1;
 	} 
@@ -225,6 +257,11 @@ inline int Adpcm::DmaLinkArrayChainSetNextMtcMar() {
 	mem8 = MemRead(Bar++);
 	mem9 = MemRead(Bar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5|mem6|mem7|mem8|mem9) == -1) {
+		if (g_Config.debug_log_level >= 2) {
+			unsigned char *bar_orig = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+			DebugLog(2, "[ADPCM DMA LINK ARRAY CHAIN] MemRead failed in link array chain at BAR=0x%08X\n",
+				(unsigned int)(uintptr_t)bar_orig);
+		}
 			DmaError(0x0B);		// Bus error (base address/counter)
 		return 1;
 	} 
@@ -298,16 +335,31 @@ inline int	Adpcm::DmaGetByte() {
 
 	try {
 	if (Mtc == 0) {
+		// Enhanced logging for DMA chain operations
+		if (g_Config.debug_log_level >= 3) {
+			DebugLog(3, "[ADPCM DMA CHAIN] MTC reached 0, checking chain mode: DmaReg[0x07]=0x%02X, DmaReg[0x05]=0x%02X\n",
+				DmaReg[0x07], DmaReg[0x05]);
+		}
+
 		if (DmaReg[0x07] & 0x40) {
+			if (g_Config.debug_log_level >= 3) {
+				DebugLog(3, "[ADPCM DMA CHAIN] Initiating Continue chain mode\n");
+			}
 			if (DmaContinueSetNextMtcMar()) {
 				throw "";
 			}
 		} else if (DmaReg[0x05] & 0x08) {
 			if (!(DmaReg[0x05] & 0x04)) {
+				if (g_Config.debug_log_level >= 3) {
+					DebugLog(3, "[ADPCM DMA CHAIN] Initiating Array chain mode\n");
+				}
 				if (DmaArrayChainSetNextMtcMar()) {
 					throw "";
 				}
 			} else {
+				if (g_Config.debug_log_level >= 3) {
+					DebugLog(3, "[ADPCM DMA CHAIN] Initiating Link Array chain mode\n");
+				}
 				if (DmaLinkArrayChainSetNextMtcMar()) {
 					throw "";
 				}
@@ -318,6 +370,9 @@ inline int	Adpcm::DmaGetByte() {
 //					throw "";
 //				}
 //			} else {
+				if (g_Config.debug_log_level >= 3) {
+					DebugLog(3, "[ADPCM DMA CHAIN] No chain mode, finishing DMA\n");
+				}
 				DmaFinish();
 				FinishCounter = 0;
 //			}
@@ -497,6 +552,54 @@ inline int Adpcm::GetPcm() {
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
 	int result = (OutPcm*TotalVolume)>>8;
+
+	// Anomaly detection logging (Level 2+)
+	if (g_Config.debug_log_level >= 2) {
+		static int anomaly_count = 0;
+		int is_anomaly = 0;
+		char anomaly_reason[256] = "";
+
+		// Check for abnormal InpPcm values
+		int inppcm_limit = (g_Config.adpcm_mode == 1) ? (32767 << 8) : (2047 << 8);
+		if (abs(InpPcm_for_hpf) > inppcm_limit) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit %d; ",
+				InpPcm_for_hpf, inppcm_limit);
+		}
+
+		// Check for HPF filter divergence
+		if (abs(OutPcm) > 100000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d HPF divergence; ", OutPcm);
+		}
+
+		// Check for near-clipping output
+		if (abs(result) > 30000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
+		}
+
+		// Check for abnormal Scale values
+		int scale_limit = (g_Config.adpcm_mode == 1) ? 88 : 48;
+		if (Scale < 0 || Scale > scale_limit) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "Scale=%d out of range [0,%d]; ",
+				Scale, scale_limit);
+		}
+
+		// Log anomalies (limit to first 50 anomalies to avoid log spam)
+		if (is_anomaly && anomaly_count < 50) {
+			DebugLog(2, "[ADPCM ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
+			DebugLog(2, "  Details: InpPcm_for_hpf=%d, InpPcm_prev=%d, OutPcm=%d, Pcm=%d, Scale=%d, TotalVolume=%d, result=%d\n",
+				InpPcm_for_hpf, InpPcm_prev, OutPcm, Pcm, Scale, TotalVolume, result);
+			anomaly_count++;
+
+			if (anomaly_count == 50) {
+				DebugLog(2, "[ADPCM ANOMALY] Maximum anomaly log count reached, suppressing further anomaly logs\n");
+			}
+		}
+	}
+
 	if (logThis) {
 		DebugLog(3, "[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
 	}
@@ -572,6 +675,60 @@ inline int Adpcm::GetPcm62() {
 	OutInpPcm_prev = OutInpPcm;
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
+
+	// Anomaly detection logging (Level 2+)
+	if (g_Config.debug_log_level >= 2) {
+		static int anomaly_count = 0;
+		int is_anomaly = 0;
+		char anomaly_reason[256] = "";
+
+		// Check for abnormal InpPcm values
+		int inppcm_limit = (g_Config.adpcm_mode == 1) ? (32767 << 8) : (2047 << 8);
+		if (abs(InpPcm_for_hpf) > inppcm_limit) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit %d; ",
+				InpPcm_for_hpf, inppcm_limit);
+		}
+
+		// Check for HPF filter divergence (GetPcm62 uses different scaling)
+		if (abs(OutPcm) > 100000000) {  // Much larger threshold for GetPcm62 due to >>9 shift
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d HPF divergence; ", OutPcm);
+		}
+
+		// Check for intermediate filter divergence
+		if (abs(OutInpPcm) > 50000000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutInpPcm=%d intermediate divergence; ", OutInpPcm);
+		}
+
+		// Check for near-clipping output
+		if (abs(result) > 30000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
+		}
+
+		// Check for abnormal Scale values
+		int scale_limit = (g_Config.adpcm_mode == 1) ? 88 : 48;
+		if (Scale < 0 || Scale > scale_limit) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "Scale=%d out of range [0,%d]; ",
+				Scale, scale_limit);
+		}
+
+		// Log anomalies (limit to first 50 anomalies to avoid log spam)
+		if (is_anomaly && anomaly_count < 50) {
+			DebugLog(2, "[ADPCM62 ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
+			DebugLog(2, "  Details: InpPcm_for_hpf=%d, InpPcm_prev=%d, OutInpPcm=%d, OutPcm=%d, Pcm=%d, Scale=%d, TotalVolume=%d, result=%d\n",
+				InpPcm_for_hpf, InpPcm_prev, OutInpPcm, OutPcm, Pcm, Scale, TotalVolume, result);
+			anomaly_count++;
+
+			if (anomaly_count == 50) {
+				DebugLog(2, "[ADPCM62 ANOMALY] Maximum anomaly log count reached, suppressing further anomaly logs\n");
+			}
+		}
+	}
+
 	if (logThis) {
 		DebugLog(3, "[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
 	}
