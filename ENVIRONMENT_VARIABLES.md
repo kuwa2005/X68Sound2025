@@ -454,24 +454,312 @@ REM - CPU負荷: 約15～20%増加
 
 ---
 
+## オーディオエフェクト設定（v2.3新機能）
+
+X68Sound2025 v2.3では、高品質なオーディオエフェクトシステムを搭載しています。
+すべてのエフェクトは環境変数で制御でき、デフォルトでは無効（過去互換性維持）です。
+
+### X68SOUND_EXCITER
+ハーモニックエキサイター - 高域補完エフェクト
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `4`
+- **説明**: ADPCMでカットされた高周波数帯域を補完し、音を鮮明にします
+  - `0`: オフ
+  - `1`: Gentle - 穏やかな高域補完
+  - `2`: Medium - バランスの取れた高域補完（推奨）
+  - `3`: Bright - 明るく鮮やかな音
+  - `4`: Extreme - 極端な高域補完
+- **効果**: シンバル・ハイハットの煌びやかさ、音の鮮明度向上、「こもった感じ」の軽減
+
+**設定例**:
+```batch
+set X68SOUND_EXCITER=2
+```
+
+### X68SOUND_SUB_BASS
+サブハーモニックベース - 低域補完エフェクト
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `4`
+- **説明**: 低音域に倍音を追加して厚みと迫力を出します
+  - `0`: オフ
+  - `1`: Subtle - 穏やかな低音補強
+  - `2`: Medium - バランスの取れた低音補強（推奨）
+  - `3`: Deep - 重厚な低音
+  - `4`: Extreme - 極端な低音補強
+- **効果**: バスドラム・ベースの迫力向上、薄い低音に重厚感追加
+
+**設定例**:
+```batch
+set X68SOUND_SUB_BASS=2
+```
+
+### X68SOUND_FM_HARMONIC
+FM倍音エンハンサー - FM音源の音質向上
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `4`
+- **説明**: FM音源に偶数次・奇数次高調波を追加し、より豊かな音色にします
+  - `0`: オフ
+  - `1`: Subtle - 穏やかな倍音追加
+  - `2`: Medium - バランスの取れた倍音追加（推奨）
+  - `3`: Rich - 豊かな倍音
+  - `4`: Extreme - 極端な倍音追加
+- **効果**: FM特有の「金属的」「デジタル臭い」音が温かく、アナログシンセのような豊かな倍音
+
+**設定例**:
+```batch
+set X68SOUND_FM_HARMONIC=2
+```
+
+### X68SOUND_FM_WARMTH
+FM温かみエフェクト - アナログ感の追加
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `4`
+- **説明**: FM音源に2次高調波を追加し、アナログシンセのような温かみを出します
+  - `0`: オフ
+  - `1`: Subtle - 穏やかな温かみ
+  - `2`: Medium - バランスの取れた温かみ（推奨）
+  - `3`: Warm - 温かく柔らかい音
+  - `4`: Extreme - 極端な温かみ
+- **効果**: デジタル臭さの軽減、温かみのある音色、倍音の豊かさ
+
+**設定例**:
+```batch
+set X68SOUND_FM_WARMTH=2
+```
+
+### X68SOUND_FM_CHORUS
+FMコーラスエフェクト - 音の厚みと広がり
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `3`
+- **説明**: FM音源に微細なピッチ変調を加えて厚みを出します
+  - `0`: オフ
+  - `1`: Subtle - 繊細なコーラス
+  - `2`: Rich - 豊かなコーラス（推奨）
+  - `3`: Wide - 広がりのあるコーラス
+- **効果**: 単音でも豊かな響き、アナログシンセのコーラス効果、ストリングス音色の向上
+
+**設定例**:
+```batch
+set X68SOUND_FM_CHORUS=2
+```
+
+### X68SOUND_STEREO_WIDTH
+ステレオ幅調整 - 音場の広がり
+
+- **デフォルト値**: `100` （通常）
+- **有効範囲**: `50` ～ `200`
+- **説明**: ステレオ音場の幅を調整します（パーセンテージ）
+  - `100`: 通常のステレオ幅
+  - `120`: やや広め
+  - `150`: 広い音場（推奨）
+  - `200`: 超広い音場（Ultra Wide）
+- **効果**: 音場が広がり、楽器の定位感が向上、より立体的なサウンドステージ
+
+**設定例**:
+```batch
+set X68SOUND_STEREO_WIDTH=150
+```
+
+### X68SOUND_CROSSFEED
+クロスフィード - ヘッドホン最適化
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `100`
+- **説明**: ヘッドホン使用時の圧迫感を軽減します
+  - `0`: オフ
+  - `30`: Natural - 自然なクロスフィード（推奨）
+  - `50`: Strong - 強めのクロスフィード
+  - `100`: 最大
+- **効果**: ヘッドホンの圧迫感軽減、より自然な定位感
+
+**設定例**:
+```batch
+set X68SOUND_CROSSFEED=30
+```
+
+### X68SOUND_REVERB
+リバーブタイプ - 空間シミュレーション
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `4`
+- **説明**: 部屋の大きさをシミュレートしたリバーブ効果
+  - `0`: オフ
+  - `1`: Small Room - 小さな部屋
+  - `2`: Medium Room - 中くらいの部屋（推奨）
+  - `3`: Large Room - 大きな部屋
+  - `4`: Hall - コンサートホール
+- **効果**: チップチューンが生演奏のような響きに、音に深みと奥行きが追加
+
+**設定例**:
+```batch
+set X68SOUND_REVERB=2
+```
+
+### X68SOUND_REVERB_DECAY
+リバーブディケイ - 残響時間
+
+- **デフォルト値**: `70` （％）
+- **有効範囲**: `10` ～ `95`
+- **説明**: リバーブの残響時間を調整します
+  - `10`: 短い残響
+  - `50`: 中程度の残響
+  - `70`: 長めの残響（推奨）
+  - `95`: 非常に長い残響
+- **効果**: 空間の広さ感、残響の長さ
+
+**設定例**:
+```batch
+set X68SOUND_REVERB_DECAY=70
+```
+
+### X68SOUND_REVERB_MIX
+リバーブミックス - Wet/Dry比率
+
+- **デフォルト値**: `20` （％）
+- **有効範囲**: `0` ～ `50`
+- **説明**: 原音とリバーブ音のミックス比率
+  - `0`: 原音のみ（リバーブなし）
+  - `10`: 控えめなリバーブ
+  - `20`: バランスの取れたリバーブ（推奨）
+  - `30`: やや多めのリバーブ
+  - `50`: リバーブ最大
+- **効果**: 空間感の強さ調整
+
+**設定例**:
+```batch
+set X68SOUND_REVERB_MIX=20
+```
+
+### X68SOUND_COMPRESSOR
+マルチバンドコンプレッサー - ダイナミクス制御
+
+- **デフォルト値**: `0` （無効）
+- **有効範囲**: `0` ～ `3`
+- **説明**: 周波数帯域別にダイナミクスを最適化します
+  - `0`: オフ
+  - `1`: Gentle - 穏やかな圧縮
+  - `2`: Medium - バランスの取れた圧縮（推奨）
+  - `3`: Strong - 強めの圧縮
+- **効果**: すべての音がクリアに聞こえる、小音量でも迫力を維持
+
+**設定例**:
+```batch
+set X68SOUND_COMPRESSOR=2
+```
+
+---
+
+## プリセット設定例
+
+### 🎵 MUSIC プリセット（音楽鑑賞）
+最高音質で音楽を楽しむための設定
+```batch
+set X68SOUND_OUTPUT_RATE=96000
+set X68SOUND_LINEAR_INTERPOLATION=1
+set X68SOUND_VOLUME_SMOOTHING=1
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
+set X68SOUND_EXCITER=2
+set X68SOUND_SUB_BASS=2
+set X68SOUND_FM_HARMONIC=2
+set X68SOUND_FM_WARMTH=2
+set X68SOUND_STEREO_WIDTH=150
+set X68SOUND_REVERB=2
+set X68SOUND_REVERB_DECAY=70
+set X68SOUND_REVERB_MIX=20
+```
+
+### 🎮 GAMING プリセット（ゲーム用）
+低レイテンシでパンチのある音
+```batch
+set X68SOUND_OUTPUT_RATE=48000
+set X68SOUND_LINEAR_INTERPOLATION=1
+set X68SOUND_VOLUME_SMOOTHING=1
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
+set X68SOUND_EXCITER=3
+set X68SOUND_SUB_BASS=3
+set X68SOUND_FM_HARMONIC=1
+set X68SOUND_COMPRESSOR=2
+set X68SOUND_REVERB=0
+set X68SOUND_LATE_TIME=100
+```
+
+### 🎧 HEADPHONE プリセット（ヘッドホン用）
+ヘッドホンリスニング最適化
+```batch
+set X68SOUND_OUTPUT_RATE=96000
+set X68SOUND_LINEAR_INTERPOLATION=1
+set X68SOUND_VOLUME_SMOOTHING=1
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
+set X68SOUND_EXCITER=2
+set X68SOUND_SUB_BASS=1
+set X68SOUND_FM_HARMONIC=2
+set X68SOUND_FM_WARMTH=2
+set X68SOUND_STEREO_WIDTH=120
+set X68SOUND_CROSSFEED=30
+set X68SOUND_REVERB=1
+set X68SOUND_REVERB_MIX=15
+```
+
+### 📻 VINTAGE プリセット（アナログ風）
+温かみのあるビンテージサウンド
+```batch
+set X68SOUND_OUTPUT_RATE=48000
+set X68SOUND_LINEAR_INTERPOLATION=1
+set X68SOUND_VOLUME_SMOOTHING=1
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
+set X68SOUND_EXCITER=1
+set X68SOUND_SUB_BASS=2
+set X68SOUND_FM_HARMONIC=3
+set X68SOUND_FM_WARMTH=3
+set X68SOUND_FM_CHORUS=2
+set X68SOUND_REVERB=3
+set X68SOUND_REVERB_DECAY=80
+set X68SOUND_REVERB_MIX=25
+```
+
+---
+
 ## リファレンス
 
 | 環境変数 | デフォルト | 範囲 | 用途 |
 |---------|-----------|------|------|
+| **基本設定** |
 | `X68SOUND_PCM_BUFFER` | 5 | 2-20 | PCMバッファサイズ |
 | `X68SOUND_BETW_TIME` | 5 | 1-50 | Between時間（ms） |
 | `X68SOUND_LATE_TIME` | 200 | 50-1000 | レイテンシ（ms） |
 | `X68SOUND_REV_MARGIN` | 1.0 | 0.1-10.0 | サンプルレート補正 |
 | `X68SOUND_BUF_MULTIPLIER` | 1 | 1-8 | バッファ乗数 |
 | `X68SOUND_DEBUG` | 0 | 0-3 | デバッグログレベル |
+| **音質向上機能** |
 | `X68SOUND_LINEAR_INTERPOLATION` | 1 | 0/1 | PCM8/ADPCM線形補間 |
 | `X68SOUND_VOLUME_SMOOTHING` | 1 | 0/1 | PCM8ボリュームスムージング |
 | `X68SOUND_OPM_SINE_INTERP` | 1 | 0/1 | OPM正弦波線形補間 |
 | `X68SOUND_OUTPUT_RATE` | 0 | 0/22050/44100/48000/96000/192000 | 出力サンプリングレート |
 | `X68SOUND_ADPCM_MODE` | 0 | 0/1 | ADPCMデコーダーモード |
+| **オーディオエフェクト** |
+| `X68SOUND_EXCITER` | 0 | 0-4 | ハーモニックエキサイター（高域補完） |
+| `X68SOUND_SUB_BASS` | 0 | 0-4 | サブハーモニックベース（低域補完） |
+| `X68SOUND_FM_HARMONIC` | 0 | 0-4 | FM倍音エンハンサー |
+| `X68SOUND_FM_WARMTH` | 0 | 0-4 | FM温かみエフェクト |
+| `X68SOUND_FM_CHORUS` | 0 | 0-3 | FMコーラスエフェクト |
+| `X68SOUND_STEREO_WIDTH` | 100 | 50-200 | ステレオ幅調整（%） |
+| `X68SOUND_CROSSFEED` | 0 | 0-100 | クロスフィード（ヘッドホン最適化） |
+| `X68SOUND_REVERB` | 0 | 0-4 | リバーブタイプ |
+| `X68SOUND_REVERB_DECAY` | 70 | 10-95 | リバーブディケイ（残響時間%） |
+| `X68SOUND_REVERB_MIX` | 20 | 0-50 | リバーブミックス（Wet/Dry%） |
+| `X68SOUND_COMPRESSOR` | 0 | 0-3 | マルチバンドコンプレッサー |
 
 ---
 
 **作成日**: 2025-01-17
 **最終更新日**: 2025-11-18
-**バージョン**: 2.3
+**バージョン**: 2.3 (オーディオエフェクトシステム追加)

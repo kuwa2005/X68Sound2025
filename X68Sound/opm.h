@@ -99,6 +99,7 @@ private:
 	Adpcm	adpcm;
 //private:
 	Pcm8	pcm8[PCM8_NCH];
+	AudioEffects audioEffects;		// Audio effects processor
 
 
 
@@ -1168,6 +1169,36 @@ inline void Opm::pcmset62(int ndata) {
 			}
 		}
 
+		// Apply audio effects processing
+		// Note: FM is in OutOpm[], ADPCM is in OutOutAdpcm[], PCM8 is part of OutOutAdpcm[]
+		// Out[] already contains the mixed signal
+		{
+			int fm_L = (OutOpm[0] >> 5);    // FM output (left)
+			int fm_R = (OutOpm[1] >> 5);    // FM output (right)
+			int adpcm = 0;                  // ADPCM is mono but mixed into stereo
+			int pcm8_L = (OutOutAdpcm[0] >> 4);  // PCM8 + ADPCM (left)
+			int pcm8_R = (OutOutAdpcm[1] >> 4);  // PCM8 + ADPCM (right)
+
+			// Process all effects in the chain
+			audioEffects.ProcessEffects(Out[0], Out[1], fm_L, fm_R, adpcm, pcm8_L, pcm8_R);
+		}
+
+		// Final clipping after effects processing
+		if ((unsigned int)(Out[0]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[0]+32767) >= (int)(32767*2)) {
+				Out[0] = 32767;
+			} else {
+				Out[0] = -32767;
+			}
+		}
+		if ((unsigned int)(Out[1]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[1]+32767) >= (int)(32767*2)) {
+				Out[1] = 32767;
+			} else {
+				Out[1] = -32767;
+			}
+		}
+
 		PcmBuf[PcmBufPtr][0] = Out[0];
 		PcmBuf[PcmBufPtr][1] = Out[1];
 
@@ -1407,6 +1438,36 @@ inline void Opm::pcmset22(int ndata) {
 			}
 		}
 
+		// Apply audio effects processing
+		// Note: FM is in OutOpm[], ADPCM is in OutOutAdpcm[], PCM8 is part of OutOutAdpcm[]
+		// Out[] already contains the mixed signal
+		{
+			int fm_L = (OutOpm[0] >> 5);    // FM output (left)
+			int fm_R = (OutOpm[1] >> 5);    // FM output (right)
+			int adpcm = 0;                  // ADPCM is mono but mixed into stereo
+			int pcm8_L = (OutOutAdpcm[0] >> 4);  // PCM8 + ADPCM (left)
+			int pcm8_R = (OutOutAdpcm[1] >> 4);  // PCM8 + ADPCM (right)
+
+			// Process all effects in the chain
+			audioEffects.ProcessEffects(Out[0], Out[1], fm_L, fm_R, adpcm, pcm8_L, pcm8_R);
+		}
+
+		// Final clipping after effects processing
+		if ((unsigned int)(Out[0]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[0]+32767) >= (int)(32767*2)) {
+				Out[0] = 32767;
+			} else {
+				Out[0] = -32767;
+			}
+		}
+		if ((unsigned int)(Out[1]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[1]+32767) >= (int)(32767*2)) {
+				Out[1] = 32767;
+			} else {
+				Out[1] = -32767;
+			}
+		}
+
 		PcmBuf[PcmBufPtr][0] = Out[0];
 		PcmBuf[PcmBufPtr][1] = Out[1];
 
@@ -1538,6 +1599,9 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 	MakeTable();
 	Reset();
 
+	// Initialize audio effects processor with the current sample rate
+	audioEffects.Init(Samprate);
+
 	return WaveAndTimerStart();
 }
 
@@ -1590,6 +1654,9 @@ inline int Opm::StartPcm(int samprate, int opmflag, int adpcmflag, int pcmbuf) {
 
 	MakeTable();
 	Reset();
+
+	// Initialize audio effects processor with the current sample rate
+	audioEffects.Init(Samprate);
 
 	PcmBufSize = 0xFFFFFFFF;
 
