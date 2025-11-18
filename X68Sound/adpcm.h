@@ -480,6 +480,9 @@ inline int Adpcm::GetPcm() {
 		RateCounter += 15625*12;
 	}
 
+	// Save actual decoded value for HPF filter (before interpolation)
+	int InpPcm_for_hpf = InpPcm;
+
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
@@ -489,9 +492,9 @@ inline int Adpcm::GetPcm() {
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
-	// Apply HPF filter (magic numbers replaced with constants)
-	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
-	InpPcm_prev = InpPcm;
+	// Apply HPF filter (using actual decoded value, not interpolated value)
+	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
 	int result = (OutPcm*TotalVolume)>>8;
 	if (logThis) {
@@ -550,6 +553,9 @@ inline int Adpcm::GetPcm62() {
 
 	}
 
+	// Save actual decoded value for HPF filter (before interpolation)
+	int InpPcm_for_hpf = InpPcm;
+
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
@@ -559,8 +565,9 @@ inline int Adpcm::GetPcm62() {
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
-	OutInpPcm = (InpPcm<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
-	InpPcm_prev = InpPcm;
+	// Apply HPF filter (using actual decoded value, not interpolated value)
+	OutInpPcm = (InpPcm_for_hpf<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
+	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
 
