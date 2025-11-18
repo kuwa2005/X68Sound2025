@@ -80,6 +80,13 @@ inline void Pcm8::Init() {
 	DmaBar = NULL;
 	DmaBtc = 0;
 	DmaOcr = 0;
+
+	static int pcm8InitCount = 0;
+	if (pcm8InitCount < 8) {
+		DebugLog("[Pcm8::Init] AdpcmReg=0x%02X, Volume=%d, CurrentVolume=%d (init_count=%d)\n",
+			AdpcmReg, Volume, CurrentVolume, pcm8InitCount);
+		pcm8InitCount++;
+	}
 }
 inline void Pcm8::InitSamprate() {
 	RateCounter = 0;

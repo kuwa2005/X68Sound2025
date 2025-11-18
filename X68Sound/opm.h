@@ -1499,6 +1499,8 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 	}
 
 	// Debug logging
+	DebugLog("[Opm::Start] samprate=%d, opmflag=%d, adpcmflag=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
+		samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
 	if (g_Config.enable_debug_log) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] Start: samprate=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
@@ -2089,6 +2091,7 @@ inline int Opm::Pcm8_Abort() {
 inline int Opm::SetTotalVolume(int v) {
 	if ((unsigned int)v <= 65535) {
 		TotalVolume = v;
+		DebugLog("[Opm::SetTotalVolume] TotalVolume set to %d\n", TotalVolume);
 	}
 	return TotalVolume;
 }

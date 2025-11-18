@@ -106,6 +106,7 @@ inline void Adpcm::Init() {
 		}
 	}
 	FinishCounter = 3;
+	DebugLog("[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
 }
 inline void Adpcm::InitSamprate() {
 	RateCounter = 0;
