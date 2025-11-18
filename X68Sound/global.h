@@ -923,21 +923,8 @@ FILE* g_DebugLogFile = NULL;
 int g_DebugLogCounter = 0;
 const int MAX_DEBUG_LOG_ENTRIES = 1000;  // Limit log entries to prevent huge files
 
-// ADPCM debug counters (global so they can be reset on START)
-int g_AdpcmGetPcmCallCount = 0;
-int g_AdpcmGetPcm62CallCount = 0;
-int g_AdpcmDmaReadCount = 0;
+// ADPCM debug counters
 int g_AdpcmDmaErrorCount = 0;
-int g_Adpcm2PcmCallCount = 0;
-
-// ADPCM sample data recording for beep debugging
-#define ADPCM_RAW_DATA_BUFFER_SIZE 200
-unsigned char g_AdpcmRawDataBuffer[ADPCM_RAW_DATA_BUFFER_SIZE];
-int g_AdpcmRawDataCount = 0;
-int g_AdpcmRawDataDumped = 0;  // Flag to prevent multiple dumps
-
-// Detailed HPF filter state logging counter
-int g_AdpcmHpfLogCount = 0;
 
 inline void DebugLog_Init() {
 	if (g_Config.debug_log_level == 0) return;

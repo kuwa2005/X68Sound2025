@@ -1972,17 +1972,8 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 		// This prevents beep artifacts caused by HPF filter state accumulation
 		adpcm.Reset();
 		static int adpcmStartCount = 0;
-		// Reset debug counters on every START to capture each sound's behavior
-		g_AdpcmGetPcmCallCount = 0;
-		g_AdpcmGetPcm62CallCount = 0;
-		g_AdpcmDmaReadCount = 0;
-		g_AdpcmDmaErrorCount = 0;
-		g_Adpcm2PcmCallCount = 0;
-		g_AdpcmRawDataCount = 0;
-		g_AdpcmRawDataDumped = 0;
-		g_AdpcmHpfLogCount = 0;
 		if (adpcmStartCount < 10) {
-			DebugLog(2, "[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d) [DEBUG COUNTERS RESET + ADPCM RESET]\n",
+			DebugLog(2, "[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
 				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStartCount);
 			adpcmStartCount++;
 		}

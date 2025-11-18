@@ -325,18 +325,6 @@ inline int	Adpcm::DmaGetByte() {
 		}
 		DmaLastValue = mem;
 
-		// Record raw ADPCM data for later analysis
-		if (g_AdpcmRawDataCount < ADPCM_RAW_DATA_BUFFER_SIZE) {
-			g_AdpcmRawDataBuffer[g_AdpcmRawDataCount] = (unsigned char)mem;
-			g_AdpcmRawDataCount++;
-		}
-
-		if (g_AdpcmDmaReadCount < 50) {
-			DebugLog(3, "[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
-				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
-			g_AdpcmDmaReadCount++;
-		}
-
 		Mar += MACTBL[(DmaReg[0x06]>>2)&3];
 		*(unsigned char **)&DmaReg[0x0C] = bswapl(Mar);
 	}
@@ -409,10 +397,6 @@ inline int	Adpcm::DmaGetByte() {
 // MSM6258 / IMA ADPCM high-quality decoder
 // -32767<<(4+4) <= InpPcm <= +32767<<(4+4)
 inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
-	int logThis = (g_Adpcm2PcmCallCount < 30);
-	int oldPcm = Pcm;
-	int oldScale = Scale;
-
 	// IMA ADPCM decoding algorithm with higher precision
 	int step = dltLTBL_MSM6258[Scale];
 	int diff = step >> 3;  // Initialize with step/8
@@ -446,30 +430,18 @@ inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
 	} else if (Scale < 0) {
 		Scale = 0;
 	}
-
-	if (logThis) {
-		DebugLog(3, "[adpcm2pcm_msm6258] adpcm=0x%02X, diff=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
-			adpcm, diff, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
-		g_Adpcm2PcmCallCount++;
-	}
 }
 
 
 // Legacy ADPCM decoder (original X68000)
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
-
-	int logThis = (g_Adpcm2PcmCallCount < 30);
-	int oldPcm = Pcm;
-	int oldScale = Scale;
-
 	int	dltL;
 	dltL = dltLTBL[Scale];
 	dltL = (dltL&(adpcm&4?-1:0)) + ((dltL>>1)&(adpcm&2?-1:0)) + ((dltL>>2)&(adpcm&1?-1:0)) + (dltL>>3);
 	int sign = adpcm&8?-1:0;
 	dltL = (dltL^sign)+(sign&1);
 	Pcm += dltL;
-
 
 	if ((unsigned int)(Pcm+MAXPCMVAL) > (unsigned int)(MAXPCMVAL*2)) {
 		if ((int)(Pcm+MAXPCMVAL) >= (int)(MAXPCMVAL*2)) {
@@ -489,26 +461,11 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 			Scale = 0;
 		}
 	}
-
-	if (logThis) {
-		DebugLog(3, "[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
-			adpcm, dltL, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
-		g_Adpcm2PcmCallCount++;
-	}
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm() {
-	int logThis = (g_AdpcmGetPcmCallCount < 20);
-	if (logThis) {
-		DebugLog(2, "[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
-		g_AdpcmGetPcmCallCount++;
-	}
-
 	if (AdpcmReg & 0x80) {		// ADPCM stop
-		if (logThis) {
-			DebugLog(2, "[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
-		}
 		return 0x80000000;
 	}
 
@@ -560,11 +517,6 @@ inline int Adpcm::GetPcm() {
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
 	// HPF formula: OutPcm = (InpPcm - InpPcm_prev) + feedback_coeff * OutPcm
-	// Save previous values for logging before updating
-	int hpf_input_log = InpPcm_for_hpf;
-	int hpf_prev_log = InpPcm_prev;
-	int hpf_outpcm_before = OutPcm;
-
 	int hpf_diff = (InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT);
 	int hpf_feedback = HPF_COEFF_A1_22KHZ * OutPcm;
 	OutPcm = (hpf_diff + hpf_feedback) >> HPF_SHIFT;
@@ -589,118 +541,20 @@ inline int Adpcm::GetPcm() {
 
 	int result = (OutPcm*TotalVolume)>>8;
 
-	// Dump raw ADPCM sample data once we have collected enough
-	if (g_Config.debug_log_level >= 2 && !g_AdpcmRawDataDumped && g_AdpcmRawDataCount >= 100) {
-		DebugLog(2, "\n========== RAW ADPCM SAMPLE DATA (first %d bytes) ==========\n", g_AdpcmRawDataCount);
-		DebugLog(2, "AdpcmRate=%d (affects pitch/playback speed)\n", AdpcmRate);
-		for (int i = 0; i < g_AdpcmRawDataCount; i++) {
-			if (i % 16 == 0) {
-				if (i > 0) DebugLog(2, "\n");
-				DebugLog(2, "[%04d] ", i);
-			}
-			DebugLog(2, "%02X ", g_AdpcmRawDataBuffer[i]);
-		}
-		DebugLog(2, "\n========== END RAW ADPCM SAMPLE DATA ==========\n\n");
-		g_AdpcmRawDataDumped = 1;
-	}
-
-	// Detailed HPF filter state logging (first 200 samples)
-	if (g_Config.debug_log_level >= 2 && g_AdpcmHpfLogCount < 200) {
-		// Use saved values from BEFORE HPF calculation for accurate logging
-		int hpf_feedback_term_before = (HPF_COEFF_A1_22KHZ * hpf_outpcm_before) >> HPF_SHIFT;
-		int hpf_diff_term = hpf_input_log - hpf_prev_log;
-
-		DebugLog(2, "[HPF #%03d] Input=%d, Prev=%d, Diff=%d, Feedback=%d, OutPcm_before=%d, OutPcm_after=%d, Scale=%d, Pcm=%d, RateCounter=%d, result=%d\n",
-			g_AdpcmHpfLogCount, hpf_input_log, hpf_prev_log, hpf_diff_term,
-			hpf_feedback_term_before, hpf_outpcm_before, OutPcm, Scale, Pcm, RateCounter, result);
-		g_AdpcmHpfLogCount++;
-	}
-
 	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
-	// Testing shows 30000 is too low and causes clipping distortion (beeps from hard limiting).
-	// Raising to 40000 to allow normal peaks (like 36300) to pass through while still
-	// limiting extreme values that cause IIR filter oscillation.
 	const int RESULT_LIMIT = 40000;
-	int result_saturated = 0;
 	if (result > RESULT_LIMIT) {
 		result = RESULT_LIMIT;
-		result_saturated = 1;
 	} else if (result < -RESULT_LIMIT) {
 		result = -RESULT_LIMIT;
-		result_saturated = 1;
 	}
 
-	// Anomaly detection logging (Level 2+)
-	if (g_Config.debug_log_level >= 2) {
-		static int anomaly_count = 0;
-		int is_anomaly = 0;
-		char anomaly_reason[256] = "";
-
-		// Check for result saturation
-		if (result_saturated) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "result saturated to %d; ", result);
-		}
-
-		// Check for abnormal InpPcm values
-		int inppcm_limit = (g_Config.adpcm_mode == 1) ? (32767 << 8) : (2047 << 8);
-		if (abs(InpPcm_for_hpf) > inppcm_limit) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit %d; ",
-				InpPcm_for_hpf, inppcm_limit);
-		}
-
-		// Check for HPF filter saturation
-		if (abs(OutPcm) >= OUT_PCM_LIMIT) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
-		}
-
-		// Check for near-clipping output (even after saturation)
-		if (abs(result) > 30000) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
-		}
-
-		// Check for abnormal Scale values
-		int scale_limit = (g_Config.adpcm_mode == 1) ? 88 : 48;
-		if (Scale < 0 || Scale > scale_limit) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "Scale=%d out of range [0,%d]; ",
-				Scale, scale_limit);
-		}
-
-		// Log anomalies (limit to first 50 anomalies to avoid log spam)
-		if (is_anomaly && anomaly_count < 50) {
-			DebugLog(2, "[ADPCM ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
-			DebugLog(2, "  Details: InpPcm_for_hpf=%d, InpPcm_prev=%d, OutPcm=%d, Pcm=%d, Scale=%d, TotalVolume=%d, result=%d\n",
-				InpPcm_for_hpf, InpPcm_prev, OutPcm, Pcm, Scale, TotalVolume, result);
-			anomaly_count++;
-
-			if (anomaly_count == 50) {
-				DebugLog(2, "[ADPCM ANOMALY] Maximum anomaly log count reached, suppressing further anomaly logs\n");
-			}
-		}
-	}
-
-	if (logThis) {
-		DebugLog(3, "[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
-	}
 	return result;
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm62() {
-	int logThis = (g_AdpcmGetPcm62CallCount < 20);
-	if (logThis) {
-		DebugLog(2, "[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
-		g_AdpcmGetPcm62CallCount++;
-	}
-
 	if (AdpcmReg & 0x80) {		// ADPCM stop
-		if (logThis) {
-			DebugLog(2, "[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
-		}
 		return 0x80000000;
 	}
 
@@ -784,81 +638,13 @@ inline int Adpcm::GetPcm62() {
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
 
 	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
-	// Testing shows 30000 is too low and causes clipping distortion (beeps from hard limiting).
-	// Raising to 40000 to allow normal peaks (like 36300) to pass through while still
-	// limiting extreme values that cause IIR filter oscillation.
 	const int RESULT_LIMIT = 40000;
-	int result_saturated = 0;
 	if (result > RESULT_LIMIT) {
 		result = RESULT_LIMIT;
-		result_saturated = 1;
 	} else if (result < -RESULT_LIMIT) {
 		result = -RESULT_LIMIT;
-		result_saturated = 1;
 	}
 
-	// Anomaly detection logging (Level 2+)
-	if (g_Config.debug_log_level >= 2) {
-		static int anomaly_count = 0;
-		int is_anomaly = 0;
-		char anomaly_reason[256] = "";
-
-		// Check for result saturation
-		if (result_saturated) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "result saturated to %d; ", result);
-		}
-
-		// Check for abnormal InpPcm values
-		int inppcm_limit = (g_Config.adpcm_mode == 1) ? (32767 << 8) : (2047 << 8);
-		if (abs(InpPcm_for_hpf) > inppcm_limit) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit %d; ",
-				InpPcm_for_hpf, inppcm_limit);
-		}
-
-		// Check for HPF filter saturation
-		if (abs(OutPcm) >= OUT_PCM_LIMIT_62) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
-		}
-
-		// Check for intermediate filter saturation
-		if (abs(OutInpPcm) >= OUT_INP_PCM_LIMIT) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "OutInpPcm=%d saturated; ", OutInpPcm);
-		}
-
-		// Check for near-clipping output (even after saturation)
-		if (abs(result) > 30000) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
-		}
-
-		// Check for abnormal Scale values
-		int scale_limit = (g_Config.adpcm_mode == 1) ? 88 : 48;
-		if (Scale < 0 || Scale > scale_limit) {
-			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "Scale=%d out of range [0,%d]; ",
-				Scale, scale_limit);
-		}
-
-		// Log anomalies (limit to first 50 anomalies to avoid log spam)
-		if (is_anomaly && anomaly_count < 50) {
-			DebugLog(2, "[ADPCM62 ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
-			DebugLog(2, "  Details: InpPcm_for_hpf=%d, InpPcm_prev=%d, OutInpPcm=%d, OutPcm=%d, Pcm=%d, Scale=%d, TotalVolume=%d, result=%d\n",
-				InpPcm_for_hpf, InpPcm_prev, OutInpPcm, OutPcm, Pcm, Scale, TotalVolume, result);
-			anomaly_count++;
-
-			if (anomaly_count == 50) {
-				DebugLog(2, "[ADPCM62 ANOMALY] Maximum anomaly log count reached, suppressing further anomaly logs\n");
-			}
-		}
-	}
-
-	if (logThis) {
-		DebugLog(3, "[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
-	}
 	return result;
 }
 
