@@ -1896,13 +1896,26 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 	}
 	return;
 #endif
-	
+
+	unsigned char oldAdpcmReg = adpcm.AdpcmReg;
 
 	if (data & 0x02) {
 		adpcm.AdpcmReg &= 0x7F;
+		static int adpcmStartCount = 0;
+		if (adpcmStartCount < 10) {
+			DebugLog("[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStartCount);
+			adpcmStartCount++;
+		}
 	} else if (data & 0x01) {
 		adpcm.AdpcmReg |= 0x80;
 		adpcm.Reset();
+		static int adpcmStopCount = 0;
+		if (adpcmStopCount < 10) {
+			DebugLog("[Opm::AdpcmPoke] STOP: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStopCount);
+			adpcmStopCount++;
+		}
 	}
 }
 inline unsigned char Opm::PpiPeek() {

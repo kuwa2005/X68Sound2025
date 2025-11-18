@@ -224,6 +224,11 @@ extern "C" unsigned char X68Sound_DmaPeek(unsigned char adrs) {
 	return opm.DmaPeek(adrs);
 }
 extern "C" void X68Sound_DmaPoke(unsigned char adrs, unsigned char data) {
+	static int dmaPokeCount = 0;
+	if (dmaPokeCount < 20) {
+		DebugLog("[X68Sound_DmaPoke] adrs=0x%02X, data=0x%02X (count=%d)\n", adrs, data, dmaPokeCount);
+		dmaPokeCount++;
+	}
 	opm.DmaPoke(adrs, data);
 }
 extern "C" void X68Sound_DmaInt(void (CALLBACK *proc)()) {
