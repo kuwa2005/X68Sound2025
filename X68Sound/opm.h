@@ -1562,8 +1562,8 @@ inline int Opm::StartPcm(int samprate, int opmflag, int adpcmflag, int pcmbuf) {
 		samprate = g_Config.output_sample_rate;
 	}
 
-	// Debug logging
-	if (g_Config.enable_debug_log) {
+	// Debug logging (Level 1: Basic information)
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] StartPcm: samprate=%d, pcmbuf=%d\n", samprate, pcmbuf);
 		OutputDebugStringA(logMsg);

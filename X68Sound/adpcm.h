@@ -274,7 +274,7 @@ inline int	Adpcm::DmaGetByte() {
 		mem = MemRead(Mar);
 		if (mem == -1) {
 			if (g_AdpcmDmaErrorCount < 5) {
-				DebugLog("[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
+				DebugLog(3, "[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
 					(unsigned int)(uintptr_t)Mar, g_AdpcmDmaErrorCount);
 				g_AdpcmDmaErrorCount++;
 			}
@@ -284,7 +284,7 @@ inline int	Adpcm::DmaGetByte() {
 		DmaLastValue = mem;
 
 		if (g_AdpcmDmaReadCount < 50) {
-			DebugLog("[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
+			DebugLog(3, "[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
 				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
 			g_AdpcmDmaReadCount++;
 		}
@@ -435,13 +435,13 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 inline int Adpcm::GetPcm() {
 	int logThis = (g_AdpcmGetPcmCallCount < 20);
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
+		DebugLog(2, "[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
 		g_AdpcmGetPcmCallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
 		if (logThis) {
-			DebugLog("[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
+			DebugLog(2, "[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
 		}
 		return 0x80000000;
 	}
@@ -495,7 +495,7 @@ inline int Adpcm::GetPcm() {
 
 	int result = (OutPcm*TotalVolume)>>8;
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+		DebugLog(3, "[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
 	}
 	return result;
 }
@@ -504,13 +504,13 @@ inline int Adpcm::GetPcm() {
 inline int Adpcm::GetPcm62() {
 	int logThis = (g_AdpcmGetPcm62CallCount < 20);
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
+		DebugLog(2, "[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
 		g_AdpcmGetPcm62CallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
 		if (logThis) {
-			DebugLog("[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
+			DebugLog(2, "[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
 		}
 		return 0x80000000;
 	}
@@ -566,7 +566,7 @@ inline int Adpcm::GetPcm62() {
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+		DebugLog(3, "[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
 	}
 	return result;
 }
