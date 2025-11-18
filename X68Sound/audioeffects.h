@@ -254,7 +254,7 @@ void AudioEffects::ProcessFMChorus(int &fm_L, int &fm_R) {
 
 	// LFO for chorus modulation (use existing sine table from OPM)
 	fm_chorus_lfo_phase += 2;  // Slow LFO ~1Hz @ 48kHz
-	int lfo = SinTable[(fm_chorus_lfo_phase >> 2) & 2047];
+	int lfo = SINTBL[(fm_chorus_lfo_phase >> 2) & (SIZESINTBL-1)];
 
 	// Delay time based on chorus depth (1=Subtle, 2=Rich, 3=Wide)
 	int base_delay = 50 + (g_Config.fm_chorus_depth * 30);  // 80, 110, 140 samples

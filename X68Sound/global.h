@@ -1,3 +1,6 @@
+#ifndef GLOBAL_H
+#define GLOBAL_H
+
 #include	<stdio.h>
 #include	<stdlib.h>
 #include	<math.h>
@@ -982,3 +985,5 @@ inline void DebugLog(int level, const char* format, ...) {
 		fflush(g_DebugLogFile);
 	}
 }
+
+#endif // GLOBAL_H
