@@ -361,7 +361,46 @@ inline int Pcm8::GetPcm() {
 		effectiveVolume = CurrentVolume;
 	}
 
-	return (((OutPcm*effectiveVolume)>>4)*TotalVolume)>>8;
+	int result = (((OutPcm*effectiveVolume)>>4)*TotalVolume)>>8;
+
+	// Anomaly detection logging (Level 2+)
+	if (g_Config.debug_log_level >= 2) {
+		static int anomaly_count = 0;
+		int is_anomaly = 0;
+		char anomaly_reason[256] = "";
+
+		// Check for abnormal InpPcm values
+		if (abs(InpPcm_for_hpf) > (32767 << 4)) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit; ", InpPcm_for_hpf);
+		}
+
+		// Check for HPF filter saturation (OutPcm hit limit)
+		if (abs(OutPcm) >= OUT_PCM_LIMIT) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
+		}
+
+		// Check for near-clipping output
+		if (abs(result) > 30000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
+		}
+
+		// Log first 50 anomalies
+		if (is_anomaly && anomaly_count < 50) {
+			DebugLog(2, "[PCM8 ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
+			DebugLog(2, "  Details: InpPcm_for_hpf=%d, InpPcm_prev=%d, OutPcm=%d, Volume=%d, effectiveVolume=%d, TotalVolume=%d, result=%d\n",
+				InpPcm_for_hpf, InpPcm_prev, OutPcm, Volume, effectiveVolume, TotalVolume, result);
+			anomaly_count++;
+
+			if (anomaly_count == 50) {
+				DebugLog(2, "[PCM8 ANOMALY] Maximum anomaly log count reached\n");
+			}
+		}
+	}
+
+	return result;
 }
 
 // -32768<<4 <= retval <= +32768<<4
@@ -468,7 +507,51 @@ inline int Pcm8::GetPcm62() {
 		effectiveVolume = CurrentVolume;
 	}
 
-	return ((((OutPcm>>9)*effectiveVolume)>>4)*TotalVolume)>>8;
+	int result = ((((OutPcm>>9)*effectiveVolume)>>4)*TotalVolume)>>8;
+
+	// Anomaly detection logging (Level 2+)
+	if (g_Config.debug_log_level >= 2) {
+		static int anomaly_count = 0;
+		int is_anomaly = 0;
+		char anomaly_reason[256] = "";
+
+		// Check for abnormal InpPcm values
+		if (abs(InpPcm) > (32767 << 8)) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit; ", InpPcm);
+		}
+
+		// Check for HPF filter saturation (OutInpPcm or OutPcm hit limit)
+		if (abs(OutInpPcm) >= OUT_INP_PCM_LIMIT) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutInpPcm=%d saturated; ", OutInpPcm);
+		}
+
+		if (abs(OutPcm) >= OUT_PCM_LIMIT_62) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
+		}
+
+		// Check for near-clipping output
+		if (abs(result) > 30000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
+		}
+
+		// Log first 50 anomalies
+		if (is_anomaly && anomaly_count < 50) {
+			DebugLog(2, "[PCM8-62 ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
+			DebugLog(2, "  Details: InpPcm=%d, InpPcm_prev=%d, OutInpPcm=%d, OutPcm=%d, Volume=%d, effectiveVolume=%d, TotalVolume=%d, result=%d\n",
+				InpPcm, InpPcm_prev, OutInpPcm, OutPcm, Volume, effectiveVolume, TotalVolume, result);
+			anomaly_count++;
+
+			if (anomaly_count == 50) {
+				DebugLog(2, "[PCM8-62 ANOMALY] Maximum anomaly log count reached\n");
+			}
+		}
+	}
+
+	return result;
 }
 
 
