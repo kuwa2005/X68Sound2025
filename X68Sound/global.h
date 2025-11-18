@@ -814,6 +814,7 @@ int g_AdpcmGetPcmCallCount = 0;
 int g_AdpcmGetPcm62CallCount = 0;
 int g_AdpcmDmaReadCount = 0;
 int g_AdpcmDmaErrorCount = 0;
+int g_Adpcm2PcmCallCount = 0;
 
 inline void DebugLog_Init() {
 	if (!g_Config.enable_debug_log) return;

@@ -341,14 +341,17 @@ inline int	Adpcm::DmaGetByte() {
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 
-	
+	int logThis = (g_Adpcm2PcmCallCount < 30);
+	int oldPcm = Pcm;
+	int oldScale = Scale;
+
 	int	dltL;
 	dltL = dltLTBL[Scale];
 	dltL = (dltL&(adpcm&4?-1:0)) + ((dltL>>1)&(adpcm&2?-1:0)) + ((dltL>>2)&(adpcm&1?-1:0)) + (dltL>>3);
 	int sign = adpcm&8?-1:0;
 	dltL = (dltL^sign)+(sign&1);
 	Pcm += dltL;
-	
+
 
 	if ((unsigned int)(Pcm+MAXPCMVAL) > (unsigned int)(MAXPCMVAL*2)) {
 		if ((int)(Pcm+MAXPCMVAL) >= (int)(MAXPCMVAL*2)) {
@@ -367,6 +370,12 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 		} else {
 			Scale = 0;
 		}
+	}
+
+	if (logThis) {
+		DebugLog("[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
+			adpcm, dltL, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
+		g_Adpcm2PcmCallCount++;
 	}
 }
 
