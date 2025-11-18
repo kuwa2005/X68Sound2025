@@ -133,9 +133,11 @@ inline void Adpcm::DmaError(unsigned char errcode) {
 	if (g_Config.debug_log_level >= 2) {
 		const char *error_desc = "";
 		switch (errcode) {
+			case 0x01: error_desc = "Configuration error (invalid CHAIN setting)"; break;
 			case 0x09: error_desc = "Bus error (destination address/counter)"; break;
 			case 0x0B: error_desc = "Bus error (base address/counter)"; break;
 			case 0x0D: error_desc = "Count error (destination address/counter)"; break;
+			case 0x11: error_desc = "Software abort error (SAB set while DMA active)"; break;
 			default: error_desc = "Unknown error"; break;
 		}
 		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
@@ -551,6 +553,15 @@ inline int Adpcm::GetPcm() {
 	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
+	// Saturate OutPcm to prevent overflow when multiplying with TotalVolume
+	// Limit to ±80000 which gives ±100000 after TotalVolume multiplication (safe margin before final clipping)
+	const int OUT_PCM_LIMIT = 80000;
+	if (OutPcm > OUT_PCM_LIMIT) {
+		OutPcm = OUT_PCM_LIMIT;
+	} else if (OutPcm < -OUT_PCM_LIMIT) {
+		OutPcm = -OUT_PCM_LIMIT;
+	}
+
 	int result = (OutPcm*TotalVolume)>>8;
 
 	// Anomaly detection logging (Level 2+)
@@ -671,8 +682,25 @@ inline int Adpcm::GetPcm62() {
 	// Apply HPF filter (using actual decoded value, not interpolated value)
 	OutInpPcm = (InpPcm_for_hpf<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
+
+	// Saturate OutInpPcm to prevent overflow in second filter stage
+	const int OUT_INP_PCM_LIMIT = 30000000;  // ~58000 after >>9 shift
+	if (OutInpPcm > OUT_INP_PCM_LIMIT) {
+		OutInpPcm = OUT_INP_PCM_LIMIT;
+	} else if (OutInpPcm < -OUT_INP_PCM_LIMIT) {
+		OutInpPcm = -OUT_INP_PCM_LIMIT;
+	}
+
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
+
+	// Saturate OutPcm to prevent overflow when multiplying with TotalVolume
+	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift, gives safe margin before clipping
+	if (OutPcm > OUT_PCM_LIMIT_62) {
+		OutPcm = OUT_PCM_LIMIT_62;
+	} else if (OutPcm < -OUT_PCM_LIMIT_62) {
+		OutPcm = -OUT_PCM_LIMIT_62;
+	}
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
 
