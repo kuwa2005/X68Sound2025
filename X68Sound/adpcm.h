@@ -124,6 +124,9 @@ inline void Adpcm::Reset() {
 	N1Data = 0;
 	N1DataFlag = 0;
 
+	// Reset RateCounter to prevent inheriting timing state from previous sound
+	// This prevents pitch-dependent beep artifacts caused by misaligned sample timing
+	RateCounter = 0;
 
 }
 
