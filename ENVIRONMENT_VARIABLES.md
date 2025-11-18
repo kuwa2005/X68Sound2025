@@ -118,13 +118,39 @@ set X68SOUND_DEBUG=3
 ```
 
 デバッグログの確認方法:
-- ログファイル: 実行ファイルと同じディレクトリに `x68sound_debug.log` が出力されます
+- ログファイル: デフォルトで実行ファイルと同じディレクトリに `x68sound_debug.log` が出力されます
+- `X68SOUND_DEBUG_LOG_FILE` 環境変数で出力先を変更可能（下記参照）
 - **DebugView** (Sysinternals) でもOutputDebugString経由の一部ログを確認可能
 - または、Visual Studioのデバッグ出力ウィンドウで確認
 
 注意事項:
 - レベル3は大量のログを出力するため、パフォーマンスに影響する可能性があります
 - ログエントリ数は1000件に制限されています（上限に達すると自動的に停止）
+
+### X68SOUND_DEBUG_LOG_FILE
+デバッグログの出力先ファイルパスを指定します。
+
+- **デフォルト値**: （未設定時は自動）
+- **有効値**: 有効なファイルパス（絶対パスまたは相対パス）
+- **説明**:
+  - この環境変数を設定すると、指定したパスにデバッグログが出力されます
+  - 未設定の場合、実行ファイルと同じディレクトリに `x68sound_debug.log` が作成されます
+  - ディレクトリが存在しない場合、ログファイルは作成されません
+  - 絶対パス、相対パスの両方が使用可能です
+
+**設定例**:
+```batch
+REM カレントディレクトリに出力
+set X68SOUND_DEBUG_LOG_FILE=adpcm_debug.log
+
+REM 絶対パスで指定
+set X68SOUND_DEBUG_LOG_FILE=C:\Logs\x68sound.log
+
+REM 相対パスで指定
+set X68SOUND_DEBUG_LOG_FILE=.\logs\debug.log
+```
+
+**用途**: ログファイルの出力先を任意の場所に変更したい場合に使用します。
 
 ### X68SOUND_LINEAR_INTERPOLATION
 線形補間による音質向上機能の有効/無効を設定します。
@@ -739,6 +765,7 @@ set X68SOUND_REVERB_MIX=25
 | `X68SOUND_REV_MARGIN` | 1.0 | 0.1-10.0 | サンプルレート補正 |
 | `X68SOUND_BUF_MULTIPLIER` | 1 | 1-8 | バッファ乗数 |
 | `X68SOUND_DEBUG` | 0 | 0-3 | デバッグログレベル |
+| `X68SOUND_DEBUG_LOG_FILE` | (自動) | パス | ログファイル出力先 |
 | **音質向上機能** |
 | `X68SOUND_LINEAR_INTERPOLATION` | 1 | 0/1 | PCM8/ADPCM線形補間 |
 | `X68SOUND_VOLUME_SMOOTHING` | 1 | 0/1 | PCM8ボリュームスムージング |

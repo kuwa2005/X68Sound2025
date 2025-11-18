@@ -933,18 +933,24 @@ int g_Adpcm2PcmCallCount = 0;
 inline void DebugLog_Init() {
 	if (g_Config.debug_log_level == 0) return;
 
-	// Get DLL directory
-	char dllPath[MAX_PATH];
 	char logPath[MAX_PATH];
-	GetModuleFileNameA(NULL, dllPath, MAX_PATH);
 
-	// Extract directory and append log filename
-	char* lastSlash = strrchr(dllPath, '\\');
-	if (lastSlash) {
-		*(lastSlash + 1) = '\0';
-		sprintf(logPath, "%sx68sound_debug.log", dllPath);
-	} else {
-		strcpy(logPath, "x68sound_debug.log");
+	// Check if environment variable specifies log file path
+	DWORD result = GetEnvironmentVariableA("X68SOUND_DEBUG_LOG_FILE", logPath, MAX_PATH);
+
+	if (result == 0 || result >= MAX_PATH) {
+		// Environment variable not set, use default path
+		char dllPath[MAX_PATH];
+		GetModuleFileNameA(NULL, dllPath, MAX_PATH);
+
+		// Extract directory and append log filename
+		char* lastSlash = strrchr(dllPath, '\\');
+		if (lastSlash) {
+			*(lastSlash + 1) = '\0';
+			sprintf(logPath, "%sx68sound_debug.log", dllPath);
+		} else {
+			strcpy(logPath, "x68sound_debug.log");
+		}
 	}
 
 	// Open log file (overwrite mode to reset each time DLL is loaded)
@@ -955,6 +961,7 @@ inline void DebugLog_Init() {
 		fprintf(g_DebugLogFile, "=== X68Sound Debug Log ===\n");
 		fprintf(g_DebugLogFile, "Log file: %s\n", logPath);
 		fprintf(g_DebugLogFile, "DLL attached at: %s\n", __DATE__ " " __TIME__);
+		fprintf(g_DebugLogFile, "Debug log level: %d\n", g_Config.debug_log_level);
 		fprintf(g_DebugLogFile, "\n");
 		fflush(g_DebugLogFile);
 	}
