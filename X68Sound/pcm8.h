@@ -1,17 +1,19 @@
 class Pcm8 {
-	int	Scale;		// 
+	int	Scale;		//
 	int Pcm;		// 16bit PCM Data
-	int Pcm16Prev;	// 16bit,8bitPCMの1つ前のデータ
-	int InpPcm,InpPcm_prev,OutPcm;		// HPF用 16bit PCM Data
-	int OutInpPcm,OutInpPcm_prev;		// HPF用
+	int	Pcm16Prev;	// Previous data for 16bit/8bit PCM
+	int	InpPcm,InpPcm_prev,OutPcm;		// 16bit PCM Data for HPF
+	int	OutInpPcm,OutInpPcm_prev;		// For HPF
+	int	PrevInpPcm;	// Previous InpPcm value for linear interpolation
 	int	AdpcmRate;	// 187500(15625*12), 125000(10416.66*12), 93750(7812.5*12), 62500(5208.33*12), 46875(3906.25*12), ...
 	int	RateCounter;
-	int	N1Data;	// ADPCM 1サンプルのデータの保存
+	int	N1Data;
 	int N1DataFlag;	// 0 or 1
 
 	volatile int	Mode;
-	volatile int	Volume;	// x/16
-	volatile int	PcmKind;	// 0～4:ADPCM  5:16bitPCM  6:8bitPCM  7:謎
+	volatile int	Volume;	// x/16 (Target volume)
+	int	CurrentVolume;	// Current effective volume for volume smoothing
+	volatile int	PcmKind;	// 0-4:ADPCM  5:16bitPCM  6:8bitPCM  7:Invalid
 
 	inline void adpcm2pcm(unsigned char adpcm);
 	inline void	pcm16_2pcm(int pcm16);
@@ -25,7 +27,7 @@ public:
 	volatile unsigned int DmaMtc;
 	volatile unsigned char *DmaBar;
 	volatile unsigned int DmaBtc;
-	volatile int	DmaOcr;				// 0:チェイン動作なし 0x08:アレイチェイン 0x0C:リンクアレイチェイン
+	volatile int	DmaOcr;				// 0:No chaining 0x08:Array chain 0x0C:Link array chain
 
 
 	inline int DmaArrayChainSetNextMtcMar();
@@ -58,13 +60,15 @@ Pcm8::Pcm8(void) {
 
 
 inline void Pcm8::Init() {
-	AdpcmReg = 0xC7;	// ADPCM動作停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 
 	Scale = 0;
 	Pcm = 0;
 	Pcm16Prev = 0;
 	InpPcm = InpPcm_prev = OutPcm = 0;
 	OutInpPcm = OutInpPcm_prev = 0;
+	PrevInpPcm = 0;		// For linear interpolation
+	CurrentVolume = Volume;	// For volume smoothing - initialize to current volume
 	AdpcmRate = 15625*12;
 	RateCounter = 0;
 	N1Data = 0;
@@ -80,12 +84,13 @@ inline void Pcm8::Init() {
 inline void Pcm8::InitSamprate() {
 	RateCounter = 0;
 }
-inline void Pcm8::Reset() {		// ADPCM キーオン時の処理
+inline void Pcm8::Reset() {
 	Scale = 0;
 	Pcm = 0;
 	Pcm16Prev = 0;
 	InpPcm = InpPcm_prev = OutPcm = 0;
 	OutInpPcm = OutInpPcm_prev = 0;
+	PrevInpPcm = 0;		// For linear interpolation
 
 	N1Data = 0;
 	N1DataFlag = 0;
@@ -108,14 +113,14 @@ inline int Pcm8::DmaArrayChainSetNextMtcMar() {
 	mem4 = MemRead((unsigned char *)DmaBar++);
 	mem5 = MemRead((unsigned char *)DmaBar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5) == -1) {
-		// バスエラー(ベースアドレス/ベースカウンタ)
+
 		return 1;
 	} 
 	DmaMar = (volatile unsigned char *)((mem0<<24)|(mem1<<16)|(mem2<<8)|(mem3));	// MAR
 	DmaMtc = (mem4<<8)|(mem5);	// MTC
 
 	if ( DmaMtc == 0 ) {	// MTC == 0 ?
-		// カウントエラー(メモリアドレス/メモリカウンタ)
+
 		return 1;
 	}
 	return 0;
@@ -138,7 +143,7 @@ inline int Pcm8::DmaLinkArrayChainSetNextMtcMar() {
 	mem8 = MemRead((unsigned char *)DmaBar++);
 	mem9 = MemRead((unsigned char *)DmaBar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5|mem6|mem7|mem8|mem9) == -1) {
-		// バスエラー(ベースアドレス/ベースカウンタ)
+
 		return 1;
 	}
 	DmaMar = (volatile unsigned char *)((mem0<<24)|(mem1<<16)|(mem2<<8)|(mem3));	// MAR
@@ -146,7 +151,7 @@ inline int Pcm8::DmaLinkArrayChainSetNextMtcMar() {
 	DmaBar = (volatile unsigned char *)((mem6<<24)|(mem7<<16)|(mem8<<8)|(mem9));	// BAR
 
 	if ( DmaMtc == 0 ) {	// MTC == 0 ?
-		// カウントエラー(メモリアドレス/メモリカウンタ)
+
 		return 1;
 	}
 	return 0;
@@ -160,7 +165,7 @@ inline int	Pcm8::DmaGetByte() {
 		int mem;
 		mem = MemRead((unsigned char *)DmaMar);
 		if (mem == -1) {
-			// バスエラー(メモリアドレス/メモリカウンタ)
+
 			return 0x80000000;
 		}
 		DmaLastValue = mem;
@@ -171,12 +176,12 @@ inline int	Pcm8::DmaGetByte() {
 
 	try {
 	if (DmaMtc == 0) {
-		if (DmaOcr & 0x08) {	// チェイニング動作
-			if (!(DmaOcr & 0x04)) {	// アレイチェイン
+		if (DmaOcr & 0x08) {
+			if (!(DmaOcr & 0x04)) {
 				if (DmaArrayChainSetNextMtcMar()) {
 					throw "";
 				}
-			} else {						// リンクアレイチェイン
+			} else {
 				if (DmaLinkArrayChainSetNextMtcMar()) {
 					throw "";
 				}
@@ -200,7 +205,7 @@ inline int	Pcm8::DmaGetByte() {
 static int	HPF_shift_tbl[16+1]={ 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4,};
 	
 
-// adpcmを入力して InpPcm の値を変化させる
+
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Pcm8::adpcm2pcm(unsigned char adpcm) {
 
@@ -233,7 +238,7 @@ inline void	Pcm8::adpcm2pcm(unsigned char adpcm) {
 	}
 }
 
-// pcm16を入力して InpPcm の値を変化させる
+
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Pcm8::pcm16_2pcm(int pcm16) {
 	Pcm += pcm16-Pcm16Prev;
@@ -253,115 +258,179 @@ inline void	Pcm8::pcm16_2pcm(int pcm16) {
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Pcm8::GetPcm() {
-	if (AdpcmReg & 0x80) {		// ADPCM 停止中
+	if (AdpcmReg & 0x80) {		// ADPCM stop
 		return 0x80000000;
 	}
+
+	// Linear interpolation: Save previous sample value
+	PrevInpPcm = InpPcm;
+
 	RateCounter -= AdpcmRate;
+	int needNewSample = (RateCounter < 0);
+
 	while (RateCounter < 0) {
 		if (PcmKind == 5) {	// 16bitPCM
 			int dataH,dataL;
 			dataH = DmaGetByte();
 			if (dataH == 0x80000000) {
 				RateCounter = 0;
-				AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 				return 0x80000000;
 			}
 			dataL = DmaGetByte();
 			if (dataL == 0x80000000) {
 				RateCounter = 0;
-				AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 				return 0x80000000;
 			}
-			pcm16_2pcm((int)(short)((dataH<<8)|dataL));	// OutPcm に値が入る
+			pcm16_2pcm((int)(short)((dataH<<8)|dataL));	// Assign value to OutPcm
 		} else if (PcmKind == 6) {	// 8bitPCM
 			int data;
 			data = DmaGetByte();
 			if (data == 0x80000000) {
 				RateCounter = 0;
-				AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 				return 0x80000000;
 			}
-			pcm16_2pcm((int)(char)data);	// InpPcm に値が入る
+			pcm16_2pcm((int)(char)data);	// Assign value to InpPcm
 		} else {
-			if (N1DataFlag == 0) {		// 次のADPCMデータが内部にない場合
+			if (N1DataFlag == 0) {		// When next ADPCM data is needed
 				int	N10Data;	// (N1Data << 4) | N0Data
-				N10Data = DmaGetByte();	// DMA転送(1バイト)
+				N10Data = DmaGetByte();	// DMA transfer (1 byte)
 				if (N10Data == 0x80000000) {
 					RateCounter = 0;
-					AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 					return 0x80000000;
 				}
-				adpcm2pcm(N10Data & 0x0F);	// InpPcm に値が入る
+				adpcm2pcm(N10Data & 0x0F);	// Assign value to InpPcm
 				N1Data = (N10Data >> 4) & 0x0F;
 				N1DataFlag = 1;
 			} else {
-				adpcm2pcm(N1Data);			// InpPcm に値が入る
+				adpcm2pcm(N1Data);			// Assign value to InpPcm
 				N1DataFlag = 0;
 			}
 		}
 		RateCounter += 15625*12;
 	}
-	OutPcm = ((InpPcm<<9) - (InpPcm_prev<<9) + 459*OutPcm) >> 9;
+
+	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
+	if (g_Config.linear_interpolation && needNewSample) {
+		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
+		int sampleInterval = 15625*12;
+		int frac = (RateCounter << 16) / sampleInterval;
+		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
+	}
+
+	// Apply HPF filter (magic numbers replaced with constants)
+	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm;
 
-	return (((OutPcm*Volume)>>4)*TotalVolume)>>8;
+	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
+	int effectiveVolume = Volume;
+	if (g_Config.volume_smoothing) {
+		if (CurrentVolume != Volume) {
+			int diff = Volume - CurrentVolume;
+			if (diff > 0) {
+				CurrentVolume += (diff >> 8) + 1;
+				if (CurrentVolume > Volume) CurrentVolume = Volume;
+			} else {
+				CurrentVolume += (diff >> 8) - 1;
+				if (CurrentVolume < Volume) CurrentVolume = Volume;
+			}
+		}
+		effectiveVolume = CurrentVolume;
+	}
+
+	return (((OutPcm*effectiveVolume)>>4)*TotalVolume)>>8;
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Pcm8::GetPcm62() {
-	if (AdpcmReg & 0x80) {		// ADPCM 停止中
+	if (AdpcmReg & 0x80) {		// ADPCM stop
 		return 0x80000000;
 	}
+
+	// Linear interpolation: Save previous sample value
+	PrevInpPcm = InpPcm;
+
 	RateCounter -= AdpcmRate;
+	int needNewSample = (RateCounter < 0);
+
 	while (RateCounter < 0) {
 		if (PcmKind == 5) {	// 16bitPCM
 			int dataH,dataL;
 			dataH = DmaGetByte();
 			if (dataH == 0x80000000) {
 				RateCounter = 0;
-				AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 				return 0x80000000;
 			}
 			dataL = DmaGetByte();
 			if (dataL == 0x80000000) {
 				RateCounter = 0;
-				AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 				return 0x80000000;
 			}
-			pcm16_2pcm((int)(short)((dataH<<8)|dataL));	// OutPcm に値が入る
+			pcm16_2pcm((int)(short)((dataH<<8)|dataL));	// Assign value to OutPcm
 		} else if (PcmKind == 6) {	// 8bitPCM
 			int data;
 			data = DmaGetByte();
 			if (data == 0x80000000) {
 				RateCounter = 0;
-				AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 				return 0x80000000;
 			}
-			pcm16_2pcm((int)(char)data);	// InpPcm に値が入る
+			pcm16_2pcm((int)(char)data);	// Assign value to InpPcm
 		} else {
-			if (N1DataFlag == 0) {		// 次のADPCMデータが内部にない場合
+			if (N1DataFlag == 0) {		// When next ADPCM data is needed
 				int	N10Data;	// (N1Data << 4) | N0Data
-				N10Data = DmaGetByte();	// DMA転送(1バイト)
+				N10Data = DmaGetByte();	// DMA transfer (1 byte)
 				if (N10Data == 0x80000000) {
 					RateCounter = 0;
-					AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 					return 0x80000000;
 				}
-				adpcm2pcm(N10Data & 0x0F);	// InpPcm に値が入る
+				adpcm2pcm(N10Data & 0x0F);	// Assign value to InpPcm
 				N1Data = (N10Data >> 4) & 0x0F;
 				N1DataFlag = 1;
 			} else {
-				adpcm2pcm(N1Data);			// InpPcm に値が入る
+				adpcm2pcm(N1Data);			// Assign value to InpPcm
 				N1DataFlag = 0;
 			}
 		}
 		RateCounter += 15625*12*4;
 	}
+
+	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
+	if (g_Config.linear_interpolation && needNewSample) {
+		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
+		int sampleInterval = 15625*12*4;
+		int frac = (RateCounter << 16) / sampleInterval;
+		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
+	}
+
 	OutInpPcm = (InpPcm<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm;
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
-	return ((OutPcm>>9)*Volume)>>4;
+
+	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
+	int effectiveVolume = Volume;
+	if (g_Config.volume_smoothing) {
+		if (CurrentVolume != Volume) {
+			int diff = Volume - CurrentVolume;
+			if (diff > 0) {
+				CurrentVolume += (diff >> 8) + 1;
+				if (CurrentVolume > Volume) CurrentVolume = Volume;
+			} else {
+				CurrentVolume += (diff >> 8) - 1;
+				if (CurrentVolume < Volume) CurrentVolume = Volume;
+			}
+		}
+		effectiveVolume = CurrentVolume;
+	}
+
+	return ((OutPcm>>9)*effectiveVolume)>>4;
 }
 
 
@@ -379,15 +448,15 @@ inline int	Pcm8::Out(void *adrs, int mode, int len) {
 			return 0;
 		}
 	}
-	AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaMar = (unsigned char *)adrs;
 	SetMode(mode);
 	if ((mode&3) != 0) {
 		DmaMtc = len;
 		Reset();
-		AdpcmReg = 0x47;	// ADPCM 動作開始
-		DmaOcr = 0;			// チェイン動作なし
+		AdpcmReg = 0x47;
+		DmaOcr = 0;
 	}
 	return 0;
 }
@@ -400,7 +469,7 @@ inline int	Pcm8::Aot(void *tbl, int mode, int cnt) {
 			return 0;
 		}
 	}
-	AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaBar = (unsigned char *)tbl;
 	DmaBtc = cnt;
@@ -408,21 +477,21 @@ inline int	Pcm8::Aot(void *tbl, int mode, int cnt) {
 	if ((mode&3) != 0) {
 		DmaArrayChainSetNextMtcMar();
 		Reset();
-		AdpcmReg = 0x47;	// ADPCM 動作開始
-		DmaOcr = 0x08;		// アレイチェイン
+		AdpcmReg = 0x47;
+		DmaOcr = 0x08;
 	}
 	return 0;
 }
 inline int	Pcm8::Lot(void *tbl, int mode) {
-	AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaBar = (unsigned char *)tbl;
 	SetMode(mode);
 	if ((mode&3) != 0) {
 		DmaLinkArrayChainSetNextMtcMar();
 		Reset();
-		AdpcmReg = 0x47;	// ADPCM 動作開始
-		DmaOcr = 0x0c;		// リンクアレイチェイン
+		AdpcmReg = 0x47;
+		DmaOcr = 0x0c;
 	}
 	return 0;
 }
@@ -446,7 +515,7 @@ inline int	Pcm8::SetMode(int mode) {
 	if (m != 0xFF) {
 		m &= 3;
 		if (m == 0) {
-			AdpcmReg = 0xC7;	// ADPCM 停止
+				AdpcmReg = 0xC7;	// ADPCM stop
 			DmaMtc = 0;
 		} else {
 			Mode = (Mode&0xFFFFFF00)|(m);
@@ -459,10 +528,10 @@ inline int	Pcm8::GetRest() {
 	if (DmaMtc == 0) {
 		return 0;
 	}
-	if (DmaOcr & 0x08) {	// チェイニング動作
-		if (!(DmaOcr & 0x04)) {	// アレイチェイン
+	if (DmaOcr & 0x08) {
+		if (!(DmaOcr & 0x04)) {
 			return -1;
-		} else {						// リンクアレイチェイン
+		} else {
 			return -2;
 		}
 	}

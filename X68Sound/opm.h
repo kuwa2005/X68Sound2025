@@ -6,20 +6,19 @@
 //#define	DELAY	(1000/5)
 
 #ifdef C86CTL
-// c86ctl 用定義
+
+// c86ctl definitions
 typedef HRESULT (WINAPI *C86CtlCreateInstance)( REFIID, LPVOID* );
 #endif
 
 class Opm {
 	char *Author;
-
-	Op	op[8][4];	// オペレータ0～31
-	int	EnvCounter1;	// エンベロープ用カウンタ1 (0,1,2,3,4,5,6,...)
-	int	EnvCounter2;	// エンベロープ用カウンタ2 (3,2,1,3,2,1,3,2,...)
-//	int	con[N_CH];	// アルゴリズム 0～7
-	int	pan[2][N_CH];	// 0:無音 -1:出力
+	Op	op[8][4];	// Operators 0-31
+	int	EnvCounter1;	// Envelope counter 1 (0,1,2,3,4,5,6,...)
+	int	EnvCounter2;	// Envelope counter 2 (3,2,1,3,2,1,3,2,...)
+	int	pan[2][N_CH];	// 0:mute -1:output
 //	int pms[N_CH];	// 0, 1, 2, 4, 10, 20, 80, 140
-//	int	ams[N_CH];	// 右シフト回数 31(0), 2(1), 1(2), 0(3)
+
 //	int	pmd;
 //	int	amd;
 //	int	pmspmd[N_CH];	// pms[]*pmd
@@ -41,26 +40,25 @@ public:
 private:
 	unsigned int	TimerID;
 
-//	int	LfoOverTime;	// LFO tのオーバーフロー値
-//	int	LfoTime;	// LFO専用 t
-//	int LfoRndTime;	// LFOランダム波専用t
+
+
+
 //	int 
-//	int	Lfrq;		// LFO周波数設定値 LFRQ
+
 //	int	LfoWaveForm;	// LFO wave form
 //	inline void	CalcLfoStep();
 	inline void SetConnection(int ch, int alg);
 	volatile int	OpOut[8];
 	int	OpOutDummy;
-
-	int	TimerAreg10;	// OPMreg$10の値
-	int	TimerAreg11;	// OPMreg$11の値
-	int	TimerA;			// タイマーAのオーバーフロー設定値
-	int	TimerAcounter;	// タイマーAのカウンター値
-	int	TimerB;			// タイマーBのオーバーフロー設定値
-	int	TimerBcounter;	// タイマーBのカウンター値
-	volatile int	TimerReg;		// タイマー制御レジスタ (OPMreg$14の下位4ビット+7ビット)
-	volatile int	StatReg;		// OPMステータスレジスタ ($E90003の下位2ビット)
-	void (CALLBACK *OpmIntProc)();	// OPM割り込みコールバック関数
+	int	TimerAreg10;	// Value of OPMreg$10
+	int	TimerAreg11;	// Value of OPMreg$11
+	int	TimerA;			// Timer A overflow setting value
+	int	TimerAcounter;	// Timer A counter value
+	int	TimerB;			// Timer B overflow setting value
+	int	TimerBcounter;	// Timer B counter value
+	volatile int	TimerReg;		// Timer control register (lower 4 bits + bit 7 of OPMreg$14)
+	volatile int	StatReg;		// OPM status register (lower 2 bits of $E90003)
+	void (CALLBACK *OpmIntProc)();	// OPM interrupt callback function
 
 	double inpopmbuf_dummy;
 	short InpOpmBuf0[OPMLPF_COL*2],InpOpmBuf1[OPMLPF_COL*2];
@@ -76,27 +74,24 @@ private:
 	int	InpInpOpm_prev2[2],InpOpm_prev2[2];
 	int OpmHpfInp[2], OpmHpfInp_prev[2], OpmHpfOut[2];
 	int OutInpAdpcm[2],OutInpAdpcm_prev[2],OutInpAdpcm_prev2[2],
-		OutOutAdpcm[2],OutOutAdpcm_prev[2],OutOutAdpcm_prev2[2];	// 高音フィルター２用バッファ
+		OutOutAdpcm[2],OutOutAdpcm_prev[2],OutOutAdpcm_prev2[2];
 	int OutInpOutAdpcm[2],OutInpOutAdpcm_prev[2],OutInpOutAdpcm_prev2[2],
-		OutOutInpAdpcm[2],OutOutInpAdpcm_prev[2];			// 高音フィルター３用バッファ
+		OutOutInpAdpcm[2],OutOutInpAdpcm_prev[2];
 	
 	volatile unsigned char	PpiReg;
-	unsigned char	AdpcmBaseClock;	// ADPCMクロック切り替え(0:8MHz 1:4Mhz)
+	unsigned char	AdpcmBaseClock;	// ADPCM clock switching (0:8MHz 1:4MHz)
 	inline void SetAdpcmRate();
-
-	unsigned char	OpmRegNo;		// 現在指定されているOPMレジスタ番号
-	unsigned char	OpmRegNo_backup;		// バックアップ用OPMレジスタ番号
-	void (CALLBACK *BetwIntProc)();	// マルチメディアタイマー割り込み
+	unsigned char	OpmRegNo;		// Currently specified OPM register number
+	unsigned char	OpmRegNo_backup;		// Backup OPM register number
+	void (CALLBACK *BetwIntProc)();	// Multimedia timer interrupt
 	int (CALLBACK *WaveFunc)();		// WaveFunc
-
-	int	UseOpmFlag;		// OPMを利用するかどうかのフラグ
-	int	UseAdpcmFlag;	// ADPCMを利用するかどうかのフラグ
+	int	UseOpmFlag;		// Flag indicating whether to use OPM
+	int	UseAdpcmFlag;	// Flag indicating whether to use ADPCM
 	int _betw;
 	int _pcmbuf;
 	int _late;
 	int _rev;
-
-	int Dousa_mode;		// 0:非動作 1:X68Sound_Start中  2:X68Sound_PcmStart中
+	int Dousa_mode;		// 0:inactive 1:during X68Sound_Start 2:during X68Sound_PcmStart
 
 	int OpmChMask;		// Channel Mask
 
@@ -105,10 +100,10 @@ private:
 //private:
 	Pcm8	pcm8[PCM8_NCH];
 
-//	int	TotalVolume;	// 音量 x/256
+
 
 #ifdef C86CTL
-private: // c86ctl 用
+private:
 	HMODULE hC86DLL;
 	c86ctl::IRealChipBase *pChipBase;
 	c86ctl::IRealChip2 *pChipOPM;
@@ -275,13 +270,12 @@ inline void Opm::CalcCmndRate() {
 }
 
 inline void Opm::Reset() {
-	// OPMコマンドバッファを初期化
-	NumCmnd = 0;
+	NumCmnd = 0;	// Clear OPM command buffer
 	CmndReadIdx = CmndWriteIdx = 0;
 
 	CalcCmndRate();
 
-	// 高音フィルター用バッファをクリア
+
 	InpInpOpm[0] = InpInpOpm[1] =
 	InpInpOpm_prev[0] = InpInpOpm_prev[1] = 0;
 	InpInpOpm_prev2[0] = InpInpOpm_prev2[1] = 0;
@@ -325,7 +319,7 @@ inline void Opm::Reset() {
 	OutOutInpAdpcm_prev[0] = OutOutInpAdpcm_prev[1] =
 	0;
 
-	// 全オペレータを初期化
+
 	{
 		int	ch;
 		for (ch=0; ch<N_CH; ++ch) {
@@ -339,22 +333,22 @@ inline void Opm::Reset() {
 		}
 	}
 
-	// エンベロープ用カウンタを初期化
+
 	{
 		EnvCounter1 = 0;
 		EnvCounter2 = 3;
 	}
 
 
-	// LFO初期化
+
 	lfo.Init();
 
-	// PcmBufポインターをリセット
+
 	PcmBufPtr=0;
 //	PcmBufSize = PCMBUFSIZE;
 
 
-	// タイマー関係の初期化
+
 	TimerAreg10 = 0;
 	TimerAreg11 = 0;
 	TimerA = 1024-0;
@@ -406,7 +400,7 @@ inline void Opm::Reset() {
 inline void Opm::ResetSamprate() {
 	CalcCmndRate();
 
-	// 高音フィルター用バッファをクリア
+
 	InpInpOpm[0] = InpInpOpm[1] =
 	InpInpOpm_prev[0] = InpInpOpm_prev[1] = 0;
 	InpInpOpm_prev2[0] = InpInpOpm_prev2[1] = 0;
@@ -450,7 +444,7 @@ inline void Opm::ResetSamprate() {
 	OutOutInpAdpcm_prev[0] = OutOutInpAdpcm_prev[1] =
 	0;
 
-	// 全オペレータを初期化
+
 	{
 		int	ch;
 		for (ch=0; ch<N_CH; ++ch) {
@@ -461,10 +455,10 @@ inline void Opm::ResetSamprate() {
 		}
 	}
 
-	// LFOを初期化
+
 	lfo.InitSamprate();
 
-	// PcmBufポインターをリセット
+
 	PcmBufPtr=0;
 //	PcmBufSize = PCMBUFSIZE;
 
@@ -485,7 +479,7 @@ Opm::Opm(void) {
 	OpmChMask = 0;
 
 #ifdef C86CTL
-	// C86CTL のロード
+
 	pChipBase = NULL;
 	pChipOPM = NULL;
 	
@@ -494,7 +488,7 @@ Opm::Opm(void) {
 		C86CtlCreateInstance pCI = (C86CtlCreateInstance)::GetProcAddress( hC86DLL, "CreateInstance" );
 		if( pCI ) (*pCI)( c86ctl::IID_IRealChipBase, (void**)&pChipBase );
 	}
-	// C86CTLの初期化 & OPMモジュールの探索
+
 	if( pChipBase ){
 		pChipBase->initialize();
 		int num  = pChipBase->getNumberOfChip();
@@ -519,7 +513,7 @@ Opm::Opm(void) {
 inline void Opm::MakeTable() {
 
 
-	// sinテーブルを作成
+
 	{
 		int	i;
 		for (i=0; i<SIZESINTBL; ++i) {
@@ -536,7 +530,7 @@ inline void Opm::MakeTable() {
 	}
 
 
-	// エンベロープ値 → α 変換テーブルを作成
+
 	{
 		int	i;
 		for (i=0; i<=ALPHAZERO+SIZEALPHATBL; ++i) {
@@ -548,7 +542,7 @@ inline void Opm::MakeTable() {
 				*1.0*1.0*PRECISION +0.0);
 		}
 	}
-	// エンベロープ値 → Noiseα 変換テーブルを作成
+
 	{
 		int	i;
 		for (i=0; i<=ALPHAZERO+SIZEALPHATBL; ++i) {
@@ -557,11 +551,11 @@ inline void Opm::MakeTable() {
 		for (i=17; i<=SIZEALPHATBL; ++i) {
 			NOISEALPHATBL[ALPHAZERO+i] = floor(
 				i*1.0/(SIZEALPHATBL)
-				*1.0*0.25*PRECISION +0.0); // Noise音量はOpの1/4
+				*1.0*0.25*PRECISION +0.0);
 		}
 	}
 
-	// D1L → D1l 変換テーブルを作成
+
 	{
 		int i;
 		for (i=0; i<15; ++i) {
@@ -571,7 +565,7 @@ inline void Opm::MakeTable() {
 	}
 
 
-	// C1 <-> M2 入れ替えテーブルを作成
+
 	{
 		int	slot;
 		for (slot=0; slot<8; ++slot) {
@@ -582,7 +576,7 @@ inline void Opm::MakeTable() {
 		}
 	}
 	
-	// Pitch→Δt変換テーブルを作成
+
 	{
 		int	oct,notekf,step;
 
@@ -673,7 +667,7 @@ inline void Opm::OpmPoke(unsigned char data) {
 		break;
 
 	case 0x14:
-	// タイマー制御レジスタ
+
 		{
 			while (_InterlockedCompareExchange(&TimerSemapho, 1, 0) == 1);
 
@@ -965,7 +959,7 @@ inline void Opm::pcmset62(int ndata) {
 						op[7][3].Output32(lfopitch[7], lfolevel[7]);
 					}
 
-					// OpmHpfInp[] に OPM の出力PCMをステレオ加算
+
 					OpmHpfInp[0] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
 									+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
 									+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
@@ -997,9 +991,9 @@ inline void Opm::pcmset62(int ndata) {
 					InpInpOpm[1] = OpmHpfOut[1] >> (4+5);
 					
 //					InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
-//									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5); // 8*-2^17 ～ 8*+2^17
+
 //					InpInpOpm[1] = (InpInpOpm[1]&(int)0xFFFFFC00)
-//									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5); // 8*-2^17 ～ 8*+2^17
+
 
 					InpInpOpm[0] = InpInpOpm[0]*29;
 					InpInpOpm[1] = InpInpOpm[1]*29;
@@ -1010,16 +1004,16 @@ inline void Opm::pcmset62(int ndata) {
 					InpInpOpm_prev[0] = InpInpOpm[0];
 					InpInpOpm_prev[1] = InpInpOpm[1];
 
-					OutInpOpm[0] = InpOpm[0] >> 5; // 8*-2^12 ～ 8*+2^12
-					OutInpOpm[1] = InpOpm[1] >> 5; // 8*-2^12 ～ 8*+2^12
-//					OutInpOpm[0] = (InpOpm[0]*521) >> (5+9); // 8*-2^12 ～ 8*+2^12
-//					OutInpOpm[1] = (InpOpm[1]*521) >> (5+9); // OPMとADPCMの音量バランス調整
+					OutInpOpm[0] = InpOpm[0] >> 5;
+					OutInpOpm[1] = InpOpm[1] >> 5;
+
+
 				}  // UseOpmFlags == 1
 			}	// UseOpmFlag
 
 			if (UseAdpcmFlag) {
 				OutInpAdpcm[0] = OutInpAdpcm[1] = 0;
-				// OutInpAdpcm[] に Adpcm の出力PCMを加算
+
 				{
 					int	o;
 					o = adpcm.GetPcm62();
@@ -1030,18 +1024,23 @@ inline void Opm::pcmset62(int ndata) {
 					}
 				}
 
-				// OutInpAdpcm[] に Pcm8 の出力PCMを加算
+				// Add Pcm8 output PCM to OutInpAdpcm[] (panning & saturation arithmetic support)
 				{
 					int ch;
 					for (ch=0; ch<PCM8_NCH; ++ch) {
-						int pan;
-						pan = pcm8[ch].GetMode();
-						int	o;
-						o = pcm8[ch].GetPcm62();
-						if (!(OpmChMask & (0x100 << ch)))
+						if (OpmChMask & (0x100 << ch)) continue;  // Skip masked channels
+
+						int pan = pcm8[ch].GetMode();
+						int o = pcm8[ch].GetPcm62();
+
 						if (o != 0x80000000) {
-								OutInpAdpcm[0] += (-(pan&1)) & o;
-								OutInpAdpcm[1] += (-((pan>>1)&1)) & o;
+							// Panning processing (bitmask operation changed to conditional branching)
+							if (pan & PAN_LEFT) {
+								OutInpAdpcm[0] = saturate_add_pcm(OutInpAdpcm[0], o);
+							}
+							if (pan & PAN_RIGHT) {
+								OutInpAdpcm[1] = saturate_add_pcm(OutInpAdpcm[1], o);
+							}
 						}
 					}
 				}
@@ -1050,7 +1049,7 @@ inline void Opm::pcmset62(int ndata) {
 //				OutInpAdpcm[0] >>= 4;
 //				OutInpAdpcm[1] >>= 4;
 					
-				// 音割れ防止
+
 				#define	LIMITS	((1<<(15+4))-1)
 				if ((unsigned int)(OutInpAdpcm[0]+LIMITS) > (unsigned int)(LIMITS*2)) {
 					if ((int)(OutInpAdpcm[0]+LIMITS) >= (int)(LIMITS*2)) {
@@ -1095,15 +1094,15 @@ inline void Opm::pcmset62(int ndata) {
 				OutOutAdpcm_prev[0] = OutOutAdpcm[0];
 				OutOutAdpcm_prev[1] = OutOutAdpcm[1];
 
-//				OutInpOpm[0] += OutOutAdpcm[0] >> 4;	// -2048*16～+2048*16
-//				OutInpOpm[1] += OutOutAdpcm[1] >> 4;	// -2048*16～+2048*16
-				OutInpOpm[0] += (OutOutAdpcm[0]*506) >> (4+9);	// -2048*16～+2048*16
-				OutInpOpm[1] += (OutOutAdpcm[1]*506) >> (4+9);	// OPMとADPCMの音量バランス調整
+
+
+				OutInpOpm[0] += (OutOutAdpcm[0]*506) >> (4+9);
+				OutInpOpm[1] += (OutOutAdpcm[1]*506) >> (4+9);
 			}	// UseAdpcmFlag
 			
 
 
-			// 音割れ防止
+
 			#define	PCM_LIMITS	((1<<15)-1)
 			if ((unsigned int)(OutInpOpm[0]+PCM_LIMITS) > (unsigned int)(PCM_LIMITS*2)) {
 				if ((int)(OutInpOpm[0]+PCM_LIMITS) >= (int)(PCM_LIMITS*2)) {
@@ -1136,15 +1135,15 @@ inline void Opm::pcmset62(int ndata) {
 			OpmLPFp = OPMLOWPASS[0];
 		}
 
-		// 全体の音量を調整
+
 		OutOpm[0] = (OutOpm[0]*TotalVolume) >> 8;
 		OutOpm[1] = (OutOpm[1]*TotalVolume) >> 8;
 
-		Out[0] -= OutOpm[0];	// -4096 ～ +4096
+		Out[0] -= OutOpm[0];
 		Out[1] -= OutOpm[1];
 
 
-		// WaveFunc()の出力値を加算
+
 		if (WaveFunc != NULL) {
 			int	ret;
 			ret = WaveFunc();
@@ -1153,7 +1152,7 @@ inline void Opm::pcmset62(int ndata) {
 		}
 
 
-		// 音割れ防止
+
 		if ((unsigned int)(Out[0]+32767) > (unsigned int)(32767*2)) {
 			if ((int)(Out[0]+32767) >= (int)(32767*2)) {
 				Out[0] = 32767;
@@ -1235,7 +1234,7 @@ inline void Opm::pcmset22(int ndata) {
 					}
 
 
-				// InpInpOpm[] に OPM の出力PCMをステレオ加算
+
 				InpInpOpm[0] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
 								+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
 								+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
@@ -1256,9 +1255,9 @@ inline void Opm::pcmset22(int ndata) {
 				{
 
 					InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
-									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5); // 8*-2^17 ～ 8*+2^17
+									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
 					InpInpOpm[1] = (InpInpOpm[1]&(int)0xFFFFFC00)
-									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5); // 8*-2^17 ～ 8*+2^17
+									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
 				}
 #if 0
 				InpInpOpm[0] += (InpInpOpm[0]<<4)+InpInpOpm[0];	// * 18
@@ -1281,11 +1280,11 @@ inline void Opm::pcmset22(int ndata) {
 				InpOpm[1] = InpInpOpm[1];
 #endif
 
-			// 全体の音量を調整
+
 			OutOpm[0] = (InpOpm[0]*TotalVolume) >> 8;
 			OutOpm[1] = (InpOpm[1]*TotalVolume) >> 8;
 
-			Out[0] -= OutOpm[0]>>(5);	// -4096 ～ +4096
+			Out[0] -= OutOpm[0]>>(5);
 			Out[1] -= OutOpm[1]>>(5);
 		}  // UseOpmFlags == 1
 		}  // UseOpmFlags
@@ -1298,7 +1297,7 @@ inline void Opm::pcmset22(int ndata) {
 					rate2 += WaveOutSamp;
 
 					OutInpAdpcm[0] = OutInpAdpcm[1] = 0;
-					// OutInpAdpcm[] に Adpcm の出力PCMを加算
+
 					{
 						int	o;
 						o = adpcm.GetPcm();
@@ -1309,27 +1308,32 @@ inline void Opm::pcmset22(int ndata) {
 						}
 					}
 
-					// OutInpAdpcm[] に Pcm8 の出力PCMを加算
+					// Add Pcm8 output PCM to OutInpAdpcm[] (panning & saturation arithmetic support)
 					{
 						int ch;
 						for (ch=0; ch<PCM8_NCH; ++ch) {
-							int pan;
-							pan = pcm8[ch].GetMode();
-							int	o;
-							o = pcm8[ch].GetPcm();
-							if (!(OpmChMask & (0x100 << ch)))
+							if (OpmChMask & (0x100 << ch)) continue;  // Skip masked channels
+
+							int pan = pcm8[ch].GetMode();
+							int o = pcm8[ch].GetPcm();
+
 							if (o != 0x80000000) {
-								OutInpAdpcm[0] += (-(pan&1)) & o;
-								OutInpAdpcm[1] += (-((pan>>1)&1)) & o;
+								// Panning processing (bitmask operation changed to conditional branching)
+								if (pan & PAN_LEFT) {
+									OutInpAdpcm[0] = saturate_add_pcm(OutInpAdpcm[0], o);
+								}
+								if (pan & PAN_RIGHT) {
+									OutInpAdpcm[1] = saturate_add_pcm(OutInpAdpcm[1], o);
+								}
 							}
 						}
 					}
 
-					// 全体の音量を調整
+
 //					OutInpAdpcm[0] = (OutInpAdpcm[0]*TotalVolume) >> 8;
 //					OutInpAdpcm[1] = (OutInpAdpcm[1]*TotalVolume) >> 8;
 
-					// 音割れ防止
+
 					#define	PCM_LIMITS	((1<<19)-1)
 					if ((unsigned int)(OutInpAdpcm[0]+PCM_LIMITS) > (unsigned int)(PCM_LIMITS*2)) {
 						if ((int)(OutInpAdpcm[0]+PCM_LIMITS) >= (int)(PCM_LIMITS*2)) {
@@ -1367,18 +1371,18 @@ inline void Opm::pcmset22(int ndata) {
 
 
 
-//			Out[0] += OutAdpcm[0] >> 4;	// -2048*16～+2048*16
+
 //			Out[1] += OutAdpcm[1] >> 4;
-			Out[0] -= OutOutAdpcm[0] >> 4;	// -2048*16～+2048*16
+			Out[0] -= OutOutAdpcm[0] >> 4;
 			Out[1] -= OutOutAdpcm[1] >> 4;
 		}
 
-//		// 全体の音量を調整
+
 //		Out[0] = (Out[0]*TotalVolume) >> 8;
 //		Out[1] = (Out[1]*TotalVolume) >> 8;
 
 
-		// WaveFunc()の出力値を加算
+
 		if (WaveFunc != NULL) {
 			int	ret;
 			ret = WaveFunc();
@@ -1387,7 +1391,7 @@ inline void Opm::pcmset22(int ndata) {
 		}
 
 
-		// 音割れ防止
+
 		if ((unsigned int)(Out[0]+32767) > (unsigned int)(32767*2)) {
 			if ((int)(Out[0]+32767) >= (int)(32767*2)) {
 				Out[0] = 32767;
@@ -1435,7 +1439,7 @@ inline void Opm::timer() {
 
 	int	prev_stat = StatReg;
 	int flag_set = 0;
-	if (TimerReg & 0x01) {	// TimerA 動作中
+	if (TimerReg & 0x01) {
 		++TimerAcounter;
 		if (TimerAcounter >= TimerA) {
 			flag_set |= ((TimerReg>>2) & 0x01);
@@ -1443,7 +1447,7 @@ inline void Opm::timer() {
 			if (TimerReg & 0x80) CsmKeyOn();
 		}
 	}
-	if (TimerReg & 0x02) {	// TimerB 動作中
+	if (TimerReg & 0x02) {
 		++TimerBcounter;
 		if (TimerBcounter >= TimerB) {
 			flag_set |= ((TimerReg>>2) & 0x02);
@@ -1476,19 +1480,46 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 	}
 	Dousa_mode = 1;
 
-	if (rev < 0.1) rev = 0.1;
-	
+	// Apply environment variable settings (when argument is -1 or default value)
+	if (betw <= 0) betw = g_Config.betw_time;
+	if (pcmbuf <= 0) pcmbuf = g_Config.pcm_buffer_size * g_Config.pcm_buf_multiplier;
+	if (late <= 0) late = g_Config.late_time;
+	if (rev < 0.1) rev = g_Config.rev_margin;
+
 	UseOpmFlag = opmflag;
 	UseAdpcmFlag = adpcmflag;
 	_betw = betw;
 	_pcmbuf = pcmbuf;
 	_late = late;
 	_rev = rev;
-	
+
+	// Override if output sampling rate is specified in environment variable
+	if (g_Config.output_sample_rate != 0) {
+		samprate = g_Config.output_sample_rate;
+	}
+
+	// Debug logging
+	if (g_Config.enable_debug_log) {
+		char logMsg[256];
+		sprintf(logMsg, "[X68Sound] Start: samprate=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
+			samprate, betw, pcmbuf, late, rev);
+		OutputDebugStringA(logMsg);
+	}
+
 	if (samprate == 44100) {
 		Samprate = samprate;
 	} else if (samprate == 48000) {
 		Samprate = samprate;
+	} else if (samprate == 96000) {
+		Samprate = samprate;
+		// 96kHz: Use 48kHz filter (closest setting)
+		OPMLPF_ROW = OPMLPF_ROW_48;
+		OPMLOWPASS = OPMLOWPASS_48;
+	} else if (samprate == 192000) {
+		Samprate = samprate;
+		// 192kHz: Use 48kHz filter (closest setting)
+		OPMLPF_ROW = OPMLPF_ROW_48;
+		OPMLOWPASS = OPMLOWPASS_48;
 	} else {
 		Samprate = samprate;
 	}
@@ -1514,17 +1545,42 @@ inline int Opm::StartPcm(int samprate, int opmflag, int adpcmflag, int pcmbuf) {
 	}
 	Dousa_mode = 2;
 
+	// Apply environment variable settings
+	if (pcmbuf <= 0) pcmbuf = g_Config.pcm_buffer_size * g_Config.pcm_buf_multiplier;
+
 	UseOpmFlag = opmflag;
 	UseAdpcmFlag = adpcmflag;
-	_betw = 5;
+	_betw = g_Config.betw_time;
 	_pcmbuf = pcmbuf;
-	_late = 200;
-	_rev = 1.0;
+	_late = g_Config.late_time;
+	_rev = g_Config.rev_margin;
+
+	// Override if output sampling rate is specified in environment variable
+	if (g_Config.output_sample_rate != 0) {
+		samprate = g_Config.output_sample_rate;
+	}
+
+	// Debug logging
+	if (g_Config.enable_debug_log) {
+		char logMsg[256];
+		sprintf(logMsg, "[X68Sound] StartPcm: samprate=%d, pcmbuf=%d\n", samprate, pcmbuf);
+		OutputDebugStringA(logMsg);
+	}
 
 	if (samprate == 44100) {
 		Samprate = samprate;
 	} else if (samprate == 48000) {
 		Samprate = samprate;
+	} else if (samprate == 96000) {
+		Samprate = samprate;
+		// 96kHz: Use 48kHz filter (closest setting)
+		OPMLPF_ROW = OPMLPF_ROW_48;
+		OPMLOWPASS = OPMLOWPASS_48;
+	} else if (samprate == 192000) {
+		Samprate = samprate;
+		// 192kHz: Use 48kHz filter (closest setting)
+		OPMLPF_ROW = OPMLPF_ROW_48;
+		OPMLOWPASS = OPMLOWPASS_48;
 	} else {
 		Samprate = samprate;
 	}
@@ -1545,11 +1601,26 @@ inline int Opm::SetSamprate(int samprate) {
 	int dousa_mode_bak = Dousa_mode;
 
 	Free();
-	
+
+	// Override if output sampling rate is specified in environment variable
+	if (g_Config.output_sample_rate != 0) {
+		samprate = g_Config.output_sample_rate;
+	}
+
 	if (samprate == 44100) {
 		Samprate = samprate;
 	} else if (samprate == 48000) {
 		Samprate = samprate;
+	} else if (samprate == 96000) {
+		Samprate = samprate;
+		// 96kHz: Use 48kHz filter (closest setting)
+		OPMLPF_ROW = OPMLPF_ROW_48;
+		OPMLOWPASS = OPMLOWPASS_48;
+	} else if (samprate == 192000) {
+		Samprate = samprate;
+		// 192kHz: Use 48kHz filter (closest setting)
+		OPMLPF_ROW = OPMLPF_ROW_48;
+		OPMLOWPASS = OPMLOWPASS_48;
 	} else {
 		Samprate = samprate;
 	}
@@ -1719,7 +1790,7 @@ inline int Opm::WaveAndTimerStart() {
 		return X68SNDERR_TIMER;
 	}
 
-	while (!timer_start_flag) Sleep(200);	// マルチメディアタイマーの処理が開始されるまで待つ
+	while (!timer_start_flag) Sleep(200);
 
 	return 0;
 }
@@ -1744,19 +1815,19 @@ inline void Opm::Free() {
 	}
 #endif
 
-	if (TimerID != NULL) {	// マルチメディアタイマー停止
+	if (TimerID != NULL) {
 		timeKillEvent(TimerID);
 		TimerID = NULL;
 		timeEndPeriod(TimerResolution);
 	}
-	if (thread_handle) {	// スレッド停止
+	if (thread_handle) {
 		PostThreadMessage(thread_id, THREADMES_KILL, 0, 0);
 		WaitForSingleObject(thread_handle, INFINITE);
 		CloseHandle(thread_handle);
 		thread_handle = NULL;
 	}
-	timer_start_flag = 0;	// マルチメディアタイマーの処理を停止
-	if (hwo != NULL) {		// ウェーブ再生停止
+	timer_start_flag = 0;
+	if (hwo != NULL) {
 //		waveOutReset(hwo);
 		if (lpwh) {
 			int i;
@@ -1791,8 +1862,8 @@ inline unsigned char Opm::AdpcmPeek() {
 inline void Opm::AdpcmPoke(unsigned char data) {
 //#ifdef ADPCM_POLY
 #if 0
-	// PCM8テスト
-	if (data & 0x02) {	// ADPCM再生開始
+
+	if (data & 0x02) {
 		static int pcm8_pantbl[4]={3,1,2,0};
 		int minch=0,ch;
 		unsigned int minlen=0xFFFFFFFF;
@@ -1802,16 +1873,16 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 				minch = ch;
 			}
 		}
-		if (adpcm.DmaReg[0x05] & 0x08) {	// チェイニング動作
-			if (!(adpcm.DmaReg[0x05] & 0x04)) {	// アレイチェイン
+		if (adpcm.DmaReg[0x05] & 0x08) {
+			if (!(adpcm.DmaReg[0x05] & 0x04)) {
 				pcm8[minch].Aot(bswapl(*(unsigned char **)&(adpcm.DmaReg[0x1C])),
 					(8<<16)+(ADPCMRATETBL[AdpcmBaseClock][(PpiReg>>2)&3]<<8)+pcm8_pantbl[PpiReg&3],
 					bswapw(*(unsigned short *)&(adpcm.DmaReg[0x1A])));
-			} else {						// リンクアレイチェイン
+			} else {
 				pcm8[minch].Lot(bswapl(*(unsigned char **)&(adpcm.DmaReg[0x1C])),
 					(8<<16)+(ADPCMRATETBL[AdpcmBaseClock][(PpiReg>>2)&3]<<8)+pcm8_pantbl[PpiReg&3]);
 			}
-		} else {	// ノーマル転送
+		} else {
 			pcm8[minch].Out(bswapl(*(unsigned char **)&(adpcm.DmaReg[0x0C])),
 				(8<<16)+(ADPCMRATETBL[AdpcmBaseClock][(PpiReg>>2)&3]<<8)+pcm8_pantbl[PpiReg&3],
 				bswapw(*(unsigned short *)&(adpcm.DmaReg[0x0A])));
@@ -1819,15 +1890,15 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 		if (adpcm.IntProc != NULL) {
 			adpcm.IntProc();
 		}
-	} else if (data & 0x01) {	// 再生動作停止
+	} else if (data & 0x01) {
 	}
 	return;
 #endif
 	
-	// オリジナル
-	if (data & 0x02) {	// ADPCM再生開始
+
+	if (data & 0x02) {
 		adpcm.AdpcmReg &= 0x7F;
-	} else if (data & 0x01) {	// 再生動作停止
+	} else if (data & 0x01) {
 		adpcm.AdpcmReg |= 0x80;
 		adpcm.Reset();
 	}
@@ -1852,7 +1923,7 @@ inline void Opm::PpiCtrl(unsigned char data) {
 inline unsigned char Opm::DmaPeek(unsigned char adrs) {
 	if (adrs >= 0x40) return 0;
 	if (adrs == 0x00) {
-		if ((adpcm.AdpcmReg & 0x80) == 0) {	// ADPCM 再生中
+		if ((adpcm.AdpcmReg & 0x80) == 0) {
 			adpcm.DmaReg[0x00] |= 0x02;
 			return adpcm.DmaReg[0x00] | 0x01;
 		}
@@ -1863,7 +1934,7 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 	if (adrs >= 0x40) return;
 	switch (adrs) {
 	case 0x00:	// CSR
-		data &= 0xF6;					// ACTとPCSはクリアしない
+		data &= 0xF6;
 		adpcm.DmaReg[adrs] &= ~data;
 		if (data & 0x10) {
 			adpcm.DmaReg[0x01] = 0;
@@ -1889,7 +1960,7 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 	case 0x29: // MFC
 	case 0x31: // DFC
 		if (adpcm.DmaReg[0x00] & 0x08) {	// ACT==1 ?
-			adpcm.DmaError(0x02);	// 動作タイミングエラー
+			adpcm.DmaError(0x02);
 			break;
 		}
 	case 0x1A:	// BTC
@@ -1911,7 +1982,7 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 		if (data&0x80) {		// STR == 1 ?
 
 			if (adpcm.DmaReg[0x00] & 0xF8) {	// COC|BTC|NDT|ERR|ACT == 1 ?
-				adpcm.DmaError(0x02);	// 動作タイミングエラー
+				adpcm.DmaError(0x02);
 				adpcm.DmaReg[0x07] = data & 0x28;
 				break;
 			}
@@ -1920,14 +1991,14 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 			if (  adpcm.DmaReg[0x04] & 0x08		// DPS != 0 ?
 				||adpcm.DmaReg[0x06] & 0x03		// DAC != 00 ?
 				||bswapl(*(unsigned char **)&adpcm.DmaReg[0x14]) != (unsigned char *)0x00E92003) {
-				adpcm.DmaError(0x0A);	// バスエラー(デバイスアドレス)
+				adpcm.DmaError(0x0A);
 				adpcm.DmaReg[0x07] = data & 0x28;
 				break;
 			}
 			unsigned char ocr;
 			ocr = adpcm.DmaReg[0x05] & 0xB0;
 			if (ocr != 0x00 && ocr != 0x30) {	// DIR==1 || SIZE!=00&&SIZE!=11 ?
-				adpcm.DmaError(0x01);	// コンフィグレーションエラー
+				adpcm.DmaError(0x01);
 				adpcm.DmaReg[0x07] = data & 0x28;
 				break;
 			}
@@ -1935,13 +2006,13 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 		}
 		if (data&0x40) {	// CNT == 1 ?
 			if ( (adpcm.DmaReg[0x00] & 0x48) != 0x08 ) {	// !(BTC==0&&ACT==1) ?
-				adpcm.DmaError(0x02);	// 動作タイミングエラー
+				adpcm.DmaError(0x02);
 				adpcm.DmaReg[0x07] = data & 0x28;
 				break;
 			}
 
 			if (adpcm.DmaReg[0x05] & 0x08) {	// CHAIN == 10 or 11 ?
-				adpcm.DmaError(0x01);	// コンフィグレーションエラー
+				adpcm.DmaError(0x01);
 				adpcm.DmaReg[0x07] = data & 0x28;
 				break;
 			}
@@ -1949,7 +2020,7 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 		}
 		if (data&0x10) {	// SAB == 1 ?
 			if (adpcm.DmaReg[0x00] & 0x08) {	// ACT == 1 ?
-				adpcm.DmaError(0x11);	// ソフトウェア強制停止
+				adpcm.DmaError(0x11);
 				adpcm.DmaReg[0x07] = data & 0x28;
 				break;
 			}
@@ -1957,13 +2028,13 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 		if (data&0x80) {	// STR == 1 ?
 			data &= 0x7F;
 
-			if (adpcm.DmaReg[0x05] & 0x08) {	// チェイニング動作
-				if (!(adpcm.DmaReg[0x05] & 0x04)) {	// アレイチェイン
+			if (adpcm.DmaReg[0x05] & 0x08) {
+				if (!(adpcm.DmaReg[0x05] & 0x04)) {
 					if (adpcm.DmaArrayChainSetNextMtcMar()) {
 						adpcm.DmaReg[0x07] = data & 0x28;
 						break;
 					}
-				} else {						// リンクアレイチェイン
+				} else {
 					if (adpcm.DmaLinkArrayChainSetNextMtcMar()) {
 						adpcm.DmaReg[0x07] = data & 0x28;
 						break;
@@ -1972,7 +2043,7 @@ inline void Opm::DmaPoke(unsigned char adrs, unsigned char data) {
 			}
 			
 			if ( (*(unsigned short *)&adpcm.DmaReg[0x0A]) == 0 ) {	// MTC == 0 ?
-				adpcm.DmaError(0x0D);	// カウントエラー(メモリアドレス/メモリカウンタ)
+				adpcm.DmaError(0x0D);
 				data &= 0x28;
 				break;
 			}

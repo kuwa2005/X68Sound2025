@@ -15,6 +15,119 @@
 int	DebugValue=0;
 int	ErrorCode=0;
 
+// Configuration structure from environment variables
+struct X68SoundConfig {
+	int pcm_buffer_size;      // PCM buffer size (default: 5)
+	int betw_time;            // Between time in ms (default: 5)
+	int late_time;            // Latency time in ms (default: 200)
+	double rev_margin;        // Sample rate revision margin (default: 1.0)
+	int enable_debug_log;     // Enable debug logging (0/1)
+	int pcm_buf_multiplier;   // Buffer size multiplier (default: 1)
+	int linear_interpolation;     // Enable PCM8/ADPCM linear interpolation (0/1, default: 1)
+	int volume_smoothing;         // Enable PCM8 volume smoothing (0/1, default: 1)
+	int opm_sine_interpolation;   // Enable OPM sine table linear interpolation (0/1, default: 1)
+	int output_sample_rate;       // Output sampling rate (0=auto, 22050/44100/48000/96000/192000)
+};
+
+// Global configuration instance
+X68SoundConfig g_Config = {
+	5,      // pcm_buffer_size
+	5,      // betw_time
+	200,    // late_time
+	1.0,    // rev_margin
+	0,      // enable_debug_log
+	1,      // pcm_buf_multiplier
+	1,      // linear_interpolation (default: ON)
+	1,      // volume_smoothing (default: ON)
+	1,      // opm_sine_interpolation (default: ON)
+	0       // output_sample_rate (0=auto-detect)
+};
+
+// Helper function to read environment variable as integer
+inline int GetEnvInt(const char* name, int defaultValue) {
+	char buffer[256];
+	DWORD result = GetEnvironmentVariableA(name, buffer, sizeof(buffer));
+	if (result > 0 && result < sizeof(buffer)) {
+		int value = atoi(buffer);
+		if (value > 0) return value;
+	}
+	return defaultValue;
+}
+
+inline double GetEnvDouble(const char* name, double defaultValue) {
+	char buffer[256];
+	DWORD result = GetEnvironmentVariableA(name, buffer, sizeof(buffer));
+	if (result > 0 && result < sizeof(buffer)) {
+		double value = atof(buffer);
+		if (value > 0.0) return value;
+	}
+	return defaultValue;
+}
+
+inline void LoadConfigFromEnvironment() {
+	g_Config.pcm_buffer_size = GetEnvInt("X68SOUND_PCM_BUFFER", 5);
+	g_Config.betw_time = GetEnvInt("X68SOUND_BETW_TIME", 5);
+	g_Config.late_time = GetEnvInt("X68SOUND_LATE_TIME", 200);
+	g_Config.rev_margin = GetEnvDouble("X68SOUND_REV_MARGIN", 1.0);
+	g_Config.enable_debug_log = GetEnvInt("X68SOUND_DEBUG", 0);
+	g_Config.pcm_buf_multiplier = GetEnvInt("X68SOUND_BUF_MULTIPLIER", 1);
+	g_Config.linear_interpolation = GetEnvInt("X68SOUND_LINEAR_INTERPOLATION", 1);
+	g_Config.volume_smoothing = GetEnvInt("X68SOUND_VOLUME_SMOOTHING", 1);
+	g_Config.opm_sine_interpolation = GetEnvInt("X68SOUND_OPM_SINE_INTERP", 1);
+	g_Config.output_sample_rate = GetEnvInt("X68SOUND_OUTPUT_RATE", 0);
+
+	// Validation
+	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
+	if (g_Config.pcm_buffer_size > 20) g_Config.pcm_buffer_size = 20;
+	if (g_Config.betw_time < 1) g_Config.betw_time = 1;
+	if (g_Config.betw_time > 50) g_Config.betw_time = 50;
+	if (g_Config.late_time < 50) g_Config.late_time = 50;
+	if (g_Config.late_time > 1000) g_Config.late_time = 1000;
+	if (g_Config.rev_margin < 0.1) g_Config.rev_margin = 0.1;
+	if (g_Config.rev_margin > 10.0) g_Config.rev_margin = 10.0;
+	if (g_Config.pcm_buf_multiplier < 1) g_Config.pcm_buf_multiplier = 1;
+	if (g_Config.pcm_buf_multiplier > 8) g_Config.pcm_buf_multiplier = 8;
+	g_Config.linear_interpolation = (g_Config.linear_interpolation != 0) ? 1 : 0;
+	g_Config.volume_smoothing = (g_Config.volume_smoothing != 0) ? 1 : 0;
+	g_Config.opm_sine_interpolation = (g_Config.opm_sine_interpolation != 0) ? 1 : 0;
+
+	// Validate output sampling rate (0=auto-detect, or allow only supported rates)
+	if (g_Config.output_sample_rate != 0 &&
+		g_Config.output_sample_rate != 22050 &&
+		g_Config.output_sample_rate != 44100 &&
+		g_Config.output_sample_rate != 48000 &&
+		g_Config.output_sample_rate != 96000 &&
+		g_Config.output_sample_rate != 192000) {
+		g_Config.output_sample_rate = 0;  // Fall back to auto-detect for invalid values
+	}
+
+	// Debug logging
+	if (g_Config.enable_debug_log) {
+		char logMsg[768];
+		sprintf(logMsg,
+			"[X68Sound] Config loaded:\n"
+			"  PCM_BUFFER=%d\n"
+			"  BETW_TIME=%d ms\n"
+			"  LATE_TIME=%d ms\n"
+			"  REV_MARGIN=%.2f\n"
+			"  BUF_MULTIPLIER=%d\n"
+			"  LINEAR_INTERPOLATION=%d\n"
+			"  VOLUME_SMOOTHING=%d\n"
+			"  OPM_SINE_INTERPOLATION=%d\n"
+			"  OUTPUT_SAMPLE_RATE=%d (0=auto)\n",
+			g_Config.pcm_buffer_size,
+			g_Config.betw_time,
+			g_Config.late_time,
+			g_Config.rev_margin,
+			g_Config.pcm_buf_multiplier,
+			g_Config.linear_interpolation,
+			g_Config.volume_smoothing,
+			g_Config.opm_sine_interpolation,
+			g_Config.output_sample_rate);
+		OutputDebugStringA(logMsg);
+	}
+}
+
 #define	N_CH	8
 
 
@@ -42,8 +155,8 @@ int	ErrorCode=0;
 
 int	Samprate = 44100;
 int	WaveOutSamp = 44100;
-int OpmWait = 240;	// 24.0É Çì
-int	OpmRate = 62500;	// ì¸óÕÉNÉçÉbÉNÅÄ64
+int OpmWait = 240;	// Equivalent to 24.0us
+int	OpmRate = 62500;	// Actual hardware clock is 64
 
 int	STEPTBL[11*12*64];
 //int	STEPTBL3[11*12*64];
@@ -270,6 +383,23 @@ const int PCM8VOLTBL[16] = {
 
 #define	PCM8_NCH	8
 
+// PCM8 mixing constants
+#define PCM8_MAX_VOLUME_SUM		(32767 << 4)
+#define PCM8_MIN_VOLUME_SUM		(-32768 << 4)
+
+// HPF filter coefficients
+#define HPF_COEFF_A1_22KHZ		459		// Filter coefficient for 22kHz (512 - 53)
+#define HPF_SHIFT				9		// Filter shift amount
+
+// Panning constants
+#define PAN_LEFT				0x01	// Left channel enabled
+#define PAN_RIGHT				0x02	// Right channel enabled
+#define PAN_STEREO				0x03	// Stereo (both channels)
+
+// Audio buffer size constants
+#define LATE_SAMPLES_MIN		50		// Minimum latency samples
+#define BETW_SAMPLES_MIN		1		// Minimum between samples
+
 
 unsigned char *bswapl(unsigned char *adrs) {
 	return (unsigned char*)_byteswap_ulong((unsigned long)adrs);
@@ -290,22 +420,33 @@ unsigned int irnd(void) {
 	return seed;
 }
 
+// Saturating arithmetic (overflow protection)
+inline int saturate_add_pcm(int accumulator, int value) {
+	int64_t result = (int64_t)accumulator + (int64_t)value;
+	if (result > PCM8_MAX_VOLUME_SUM) {
+		return PCM8_MAX_VOLUME_SUM;
+	} else if (result < PCM8_MIN_VOLUME_SUM) {
+		return PCM8_MIN_VOLUME_SUM;
+	}
+	return (int)result;
+}
 
 
-int	TotalVolume;	// âπó  x/256
+
+int	TotalVolume;	// Total volume x/256
 
 volatile static long TimerSemapho=0;
 
 #define	OPMLPF_COL	64
 
 #define	OPMLPF_ROW_44	441
-static double opmlowpass_dummy_44;	// 64bitã´äEçáÇÌÇπ
+static double opmlowpass_dummy_44;	// 64-bit boundary alignment
 static short OPMLOWPASS_44[OPMLPF_ROW_44][OPMLPF_COL] = {
 	#include "opmlowpass_44.dat"
 };
 
 #define	OPMLPF_ROW_48	96
-static double opmlowpass_dummy_48;	// 64bitã´äEçáÇÌÇπ
+static double opmlowpass_dummy_48;	// 64-bit boundary alignment
 static short OPMLOWPASS_48[OPMLPF_ROW_48][OPMLPF_COL] = {
 	#include "opmlowpass_48.dat"
 };
