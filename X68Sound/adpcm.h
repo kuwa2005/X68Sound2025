@@ -10,6 +10,7 @@ class Adpcm {
 	int N1DataFlag;	// 0 or 1
 
 	inline void adpcm2pcm(unsigned char adpcm);
+	inline void adpcm2pcm_msm6258(unsigned char adpcm);
 
 public:
 	void (CALLBACK *IntProc)();	// Interrupt address
