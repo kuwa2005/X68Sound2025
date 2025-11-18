@@ -107,7 +107,7 @@ inline void Adpcm::Init() {
 		}
 	}
 	FinishCounter = 3;
-	DebugLog("[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
+	DebugLog(1, "[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
 }
 inline void Adpcm::InitSamprate() {
 	RateCounter = 0;
@@ -382,7 +382,7 @@ inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
 	}
 
 	if (logThis) {
-		DebugLog("[adpcm2pcm_msm6258] adpcm=0x%02X, diff=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
+		DebugLog(3, "[adpcm2pcm_msm6258] adpcm=0x%02X, diff=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
 			adpcm, diff, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
 		g_Adpcm2PcmCallCount++;
 	}
@@ -425,7 +425,7 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 	}
 
 	if (logThis) {
-		DebugLog("[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
+		DebugLog(3, "[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
 			adpcm, dltL, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
 		g_Adpcm2PcmCallCount++;
 	}

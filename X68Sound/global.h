@@ -21,13 +21,13 @@ struct X68SoundConfig {
 	int betw_time;            // Between time in ms (default: 5)
 	int late_time;            // Latency time in ms (default: 200)
 	double rev_margin;        // Sample rate revision margin (default: 1.0)
-	int enable_debug_log;     // Enable debug logging (0/1)
 	int pcm_buf_multiplier;   // Buffer size multiplier (default: 1)
 	int linear_interpolation;     // Enable PCM8/ADPCM linear interpolation (0/1, default: 1)
 	int volume_smoothing;         // Enable PCM8 volume smoothing (0/1, default: 1)
 	int opm_sine_interpolation;   // Enable OPM sine table linear interpolation (0/1, default: 1)
 	int output_sample_rate;       // Output sampling rate (0=auto, 22050/44100/48000/96000/192000)
 	int adpcm_mode;               // ADPCM decoder mode (0=legacy, 1=MSM6258 high-quality)
+	int debug_log_level;          // Debug log level (0=off, 1=basic, 2=trace, 3=detailed)
 };
 
 // Global configuration instance
@@ -36,13 +36,13 @@ X68SoundConfig g_Config = {
 	5,      // betw_time
 	200,    // late_time
 	1.0,    // rev_margin
-	0,      // enable_debug_log
 	1,      // pcm_buf_multiplier
 	1,      // linear_interpolation (default: ON)
 	1,      // volume_smoothing (default: ON)
 	1,      // opm_sine_interpolation (default: ON)
 	0,      // output_sample_rate (0=auto-detect)
-	0       // adpcm_mode (0=legacy, 1=MSM6258 high-quality)
+	0,      // adpcm_mode (0=legacy, 1=MSM6258 high-quality)
+	0       // debug_log_level (0=off, 1=basic, 2=trace, 3=detailed)
 };
 
 // Helper function to read environment variable as integer
@@ -71,13 +71,13 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.betw_time = GetEnvInt("X68SOUND_BETW_TIME", 5);
 	g_Config.late_time = GetEnvInt("X68SOUND_LATE_TIME", 200);
 	g_Config.rev_margin = GetEnvDouble("X68SOUND_REV_MARGIN", 1.0);
-	g_Config.enable_debug_log = GetEnvInt("X68SOUND_DEBUG", 0);
 	g_Config.pcm_buf_multiplier = GetEnvInt("X68SOUND_BUF_MULTIPLIER", 1);
 	g_Config.linear_interpolation = GetEnvInt("X68SOUND_LINEAR_INTERPOLATION", 1);
 	g_Config.volume_smoothing = GetEnvInt("X68SOUND_VOLUME_SMOOTHING", 1);
 	g_Config.opm_sine_interpolation = GetEnvInt("X68SOUND_OPM_SINE_INTERP", 1);
 	g_Config.output_sample_rate = GetEnvInt("X68SOUND_OUTPUT_RATE", 0);
 	g_Config.adpcm_mode = GetEnvInt("X68SOUND_ADPCM_MODE", 0);
+	g_Config.debug_log_level = GetEnvInt("X68SOUND_DEBUG", 0);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -109,8 +109,12 @@ inline void LoadConfigFromEnvironment() {
 		g_Config.adpcm_mode = 0;  // Fall back to legacy mode
 	}
 
-	// Debug logging
-	if (g_Config.enable_debug_log) {
+	// Validate debug log level (0=off, 1=basic, 2=trace, 3=detailed)
+	if (g_Config.debug_log_level < 0) g_Config.debug_log_level = 0;
+	if (g_Config.debug_log_level > 3) g_Config.debug_log_level = 3;
+
+	// Debug logging (Level 1: Basic information)
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[768];
 		sprintf(logMsg,
 			"[X68Sound] Config loaded:\n"
@@ -123,7 +127,8 @@ inline void LoadConfigFromEnvironment() {
 			"  VOLUME_SMOOTHING=%d\n"
 			"  OPM_SINE_INTERPOLATION=%d\n"
 			"  OUTPUT_SAMPLE_RATE=%d (0=auto)\n"
-			"  ADPCM_MODE=%d (0=legacy, 1=MSM6258)\n",
+			"  ADPCM_MODE=%d (0=legacy, 1=MSM6258)\n"
+			"  DEBUG_LEVEL=%d (0=off, 1=basic, 2=trace, 3=detailed)\n",
 			g_Config.pcm_buffer_size,
 			g_Config.betw_time,
 			g_Config.late_time,
@@ -133,7 +138,8 @@ inline void LoadConfigFromEnvironment() {
 			g_Config.volume_smoothing,
 			g_Config.opm_sine_interpolation,
 			g_Config.output_sample_rate,
-			g_Config.adpcm_mode);
+			g_Config.adpcm_mode,
+			g_Config.debug_log_level);
 		OutputDebugStringA(logMsg);
 	}
 }
@@ -849,7 +855,7 @@ int g_AdpcmDmaErrorCount = 0;
 int g_Adpcm2PcmCallCount = 0;
 
 inline void DebugLog_Init() {
-	if (!g_Config.enable_debug_log) return;
+	if (g_Config.debug_log_level == 0) return;
 
 	// Get DLL directory
 	char dllPath[MAX_PATH];
@@ -886,8 +892,8 @@ inline void DebugLog_Close() {
 	}
 }
 
-inline void DebugLog(const char* format, ...) {
-	if (!g_Config.enable_debug_log || !g_DebugLogFile) return;
+inline void DebugLog(int level, const char* format, ...) {
+	if (g_Config.debug_log_level < level || !g_DebugLogFile) return;
 	if (g_DebugLogCounter >= MAX_DEBUG_LOG_ENTRIES) return;
 
 	va_list args;
