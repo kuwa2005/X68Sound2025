@@ -8,6 +8,9 @@ class Adpcm {
 	int	RateCounter;
 	int	N1Data;	// Storage for ADPCM 1 sample data
 	int N1DataFlag;	// 0 or 1
+	int SaturationCounter;		// Counter for consecutive saturation detection (beep prevention)
+	int SaturationCounter62_1;	// Counter for GetPcm62 first stage
+	int SaturationCounter62_2;	// Counter for GetPcm62 second stage
 
 	inline void adpcm2pcm(unsigned char adpcm);
 	inline void adpcm2pcm_msm6258(unsigned char adpcm);
@@ -45,6 +48,10 @@ int FinishCounter;
 
 
 Adpcm::Adpcm(void) {
+	// Initialize saturation detection counters
+	SaturationCounter = 0;
+	SaturationCounter62_1 = 0;
+	SaturationCounter62_2 = 0;
 }
 
 inline void Adpcm::SetAdpcmRate(int rate) {
@@ -127,6 +134,11 @@ inline void Adpcm::Reset() {
 	// Reset RateCounter to prevent inheriting timing state from previous sound
 	// This prevents pitch-dependent beep artifacts caused by misaligned sample timing
 	RateCounter = 0;
+
+	// Reset saturation counters to prevent false detection from previous playback
+	SaturationCounter = 0;
+	SaturationCounter62_1 = 0;
+	SaturationCounter62_2 = 0;
 
 }
 
@@ -525,18 +537,31 @@ inline int Adpcm::GetPcm() {
 	// Prevent HPF filter oscillation by resetting filter state when output saturates
 	// When OutPcm reaches saturation level (±70000), the feedback term becomes huge
 	// (459 * 70000 / 512 = 62,695), causing permanent oscillation and beep artifacts.
-	// Solution: Reset OutPcm to a smaller value to break the feedback loop.
+	// Solution: Detect consecutive saturation and aggressively reset to break feedback loop.
 	const int OUT_PCM_LIMIT = 70000;
-	const int OUT_PCM_RESET_THRESHOLD = 65000;  // Reset if approaching saturation
+	const int OUT_PCM_RESET_THRESHOLD = 60000;  // Lowered from 65000 to catch oscillation earlier
+	const int OUT_PCM_HARD_THRESHOLD = 50000;   // If consecutive saturation occurs, use stricter limit
 
-	if (OutPcm > OUT_PCM_RESET_THRESHOLD) {
-		// Approaching positive saturation - reset to break feedback loop
-		OutPcm = InpPcm_for_hpf >> HPF_SHIFT;  // Reset to input value (no feedback)
-		if (OutPcm > OUT_PCM_LIMIT) OutPcm = OUT_PCM_LIMIT;
-	} else if (OutPcm < -OUT_PCM_RESET_THRESHOLD) {
-		// Approaching negative saturation - reset to break feedback loop
-		OutPcm = InpPcm_for_hpf >> HPF_SHIFT;  // Reset to input value (no feedback)
-		if (OutPcm < -OUT_PCM_LIMIT) OutPcm = -OUT_PCM_LIMIT;
+	// Check if filter output is approaching saturation
+	int abs_OutPcm = (OutPcm >= 0) ? OutPcm : -OutPcm;
+	if (abs_OutPcm > OUT_PCM_RESET_THRESHOLD) {
+		SaturationCounter++;
+
+		// If consecutive saturation detected (2+ samples in a row), aggressively reset
+		if (SaturationCounter >= 2 || abs_OutPcm > OUT_PCM_HARD_THRESHOLD) {
+			// Complete filter state reset to break oscillation
+			OutPcm = 0;           // Reset to zero (most aggressive)
+			InpPcm_prev = 0;      // Also reset filter history
+			SaturationCounter = 0; // Reset counter after intervention
+		} else {
+			// Single saturation - gentle reset to input value
+			OutPcm = InpPcm_for_hpf >> HPF_SHIFT;
+			if (OutPcm > OUT_PCM_LIMIT) OutPcm = OUT_PCM_LIMIT;
+			if (OutPcm < -OUT_PCM_LIMIT) OutPcm = -OUT_PCM_LIMIT;
+		}
+	} else {
+		// Normal operation - clear saturation counter
+		SaturationCounter = 0;
 	}
 
 	int result = (OutPcm*TotalVolume)>>8;
@@ -610,29 +635,55 @@ inline int Adpcm::GetPcm62() {
 	OutInpPcm = (InpPcm_for_hpf<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
-	// Prevent first stage oscillation by resetting if approaching saturation
+	// Prevent first stage oscillation by detecting consecutive saturation
 	const int OUT_INP_PCM_LIMIT = 30000000;  // ~58000 after >>9 shift
-	const int OUT_INP_PCM_RESET_THRESHOLD = 27000000;
-	if (OutInpPcm > OUT_INP_PCM_RESET_THRESHOLD) {
-		OutInpPcm = (InpPcm_for_hpf<<9);  // Reset to input
-		if (OutInpPcm > OUT_INP_PCM_LIMIT) OutInpPcm = OUT_INP_PCM_LIMIT;
-	} else if (OutInpPcm < -OUT_INP_PCM_RESET_THRESHOLD) {
-		OutInpPcm = (InpPcm_for_hpf<<9);  // Reset to input
-		if (OutInpPcm < -OUT_INP_PCM_LIMIT) OutInpPcm = -OUT_INP_PCM_LIMIT;
+	const int OUT_INP_PCM_RESET_THRESHOLD = 24000000;  // Lowered from 27M for earlier detection
+	const int OUT_INP_PCM_HARD_THRESHOLD = 20000000;
+
+	int abs_OutInpPcm = (OutInpPcm >= 0) ? OutInpPcm : -OutInpPcm;
+	if (abs_OutInpPcm > OUT_INP_PCM_RESET_THRESHOLD) {
+		SaturationCounter62_1++;
+
+		if (SaturationCounter62_1 >= 2 || abs_OutInpPcm > OUT_INP_PCM_HARD_THRESHOLD) {
+			// Consecutive saturation - aggressive reset
+			OutInpPcm = 0;
+			InpPcm_prev = 0;
+			SaturationCounter62_1 = 0;
+		} else {
+			// Single saturation - gentle reset
+			OutInpPcm = (InpPcm_for_hpf<<9);
+			if (OutInpPcm > OUT_INP_PCM_LIMIT) OutInpPcm = OUT_INP_PCM_LIMIT;
+			if (OutInpPcm < -OUT_INP_PCM_LIMIT) OutInpPcm = -OUT_INP_PCM_LIMIT;
+		}
+	} else {
+		SaturationCounter62_1 = 0;
 	}
 
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
 
-	// Prevent second stage oscillation by resetting if approaching saturation
+	// Prevent second stage oscillation by detecting consecutive saturation
 	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift
-	const int OUT_PCM_RESET_THRESHOLD_62 = 45000000;
-	if (OutPcm > OUT_PCM_RESET_THRESHOLD_62) {
-		OutPcm = OutInpPcm;  // Reset to first stage output
-		if (OutPcm > OUT_PCM_LIMIT_62) OutPcm = OUT_PCM_LIMIT_62;
-	} else if (OutPcm < -OUT_PCM_RESET_THRESHOLD_62) {
-		OutPcm = OutInpPcm;  // Reset to first stage output
-		if (OutPcm < -OUT_PCM_LIMIT_62) OutPcm = -OUT_PCM_LIMIT_62;
+	const int OUT_PCM_RESET_THRESHOLD_62 = 40000000;  // Lowered from 45M for earlier detection
+	const int OUT_PCM_HARD_THRESHOLD_62 = 35000000;
+
+	int abs_OutPcm_62 = (OutPcm >= 0) ? OutPcm : -OutPcm;
+	if (abs_OutPcm_62 > OUT_PCM_RESET_THRESHOLD_62) {
+		SaturationCounter62_2++;
+
+		if (SaturationCounter62_2 >= 2 || abs_OutPcm_62 > OUT_PCM_HARD_THRESHOLD_62) {
+			// Consecutive saturation - aggressive reset
+			OutPcm = 0;
+			OutInpPcm_prev = 0;
+			SaturationCounter62_2 = 0;
+		} else {
+			// Single saturation - gentle reset to first stage output
+			OutPcm = OutInpPcm;
+			if (OutPcm > OUT_PCM_LIMIT_62) OutPcm = OUT_PCM_LIMIT_62;
+			if (OutPcm < -OUT_PCM_LIMIT_62) OutPcm = -OUT_PCM_LIMIT_62;
+		}
+	} else {
+		SaturationCounter62_2 = 0;
 	}
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
