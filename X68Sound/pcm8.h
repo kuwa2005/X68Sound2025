@@ -323,8 +323,9 @@ inline int Pcm8::GetPcm() {
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
+		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12;
-		int frac = (RateCounter << 16) / sampleInterval;
+		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
@@ -411,8 +412,9 @@ inline int Pcm8::GetPcm62() {
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
+		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12*4;
-		int frac = (RateCounter << 16) / sampleInterval;
+		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
