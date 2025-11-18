@@ -375,12 +375,16 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm() {
 	static int getPcmCallCount = 0;
-	if (getPcmCallCount < 5) {
+	int logThis = (getPcmCallCount < 20);
+	if (logThis) {
 		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, getPcmCallCount);
 		getPcmCallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
+		if (logThis) {
+			DebugLog("[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
+		}
 		return 0x80000000;
 	}
 
@@ -420,18 +424,26 @@ inline int Adpcm::GetPcm() {
 	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm;
 
-	return (OutPcm*TotalVolume)>>8;
+	int result = (OutPcm*TotalVolume)>>8;
+	if (logThis) {
+		DebugLog("[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+	}
+	return result;
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm62() {
 	static int getPcm62CallCount = 0;
-	if (getPcm62CallCount < 5) {
+	int logThis = (getPcm62CallCount < 20);
+	if (logThis) {
 		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, getPcm62CallCount);
 		getPcm62CallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
+		if (logThis) {
+			DebugLog("[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
+		}
 		return 0x80000000;
 	}
 
@@ -472,6 +484,11 @@ inline int Adpcm::GetPcm62() {
 	InpPcm_prev = InpPcm;
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
-	return ((OutPcm>>9)*TotalVolume)>>8;
+
+	int result = ((OutPcm>>9)*TotalVolume)>>8;
+	if (logThis) {
+		DebugLog("[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+	}
+	return result;
 }
 
