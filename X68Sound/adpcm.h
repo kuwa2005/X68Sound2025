@@ -106,6 +106,7 @@ inline void Adpcm::Init() {
 		}
 	}
 	FinishCounter = 3;
+	DebugLog("[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
 }
 inline void Adpcm::InitSamprate() {
 	RateCounter = 0;
@@ -271,10 +272,22 @@ inline int	Adpcm::DmaGetByte() {
 		int mem;
 		mem = MemRead(Mar);
 		if (mem == -1) {
+			if (g_AdpcmDmaErrorCount < 5) {
+				DebugLog("[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
+					(unsigned int)(uintptr_t)Mar, g_AdpcmDmaErrorCount);
+				g_AdpcmDmaErrorCount++;
+			}
 			DmaError(0x09);	// Bus error (destination address/counter)
 			return 0x80000000;
 		}
 		DmaLastValue = mem;
+
+		if (g_AdpcmDmaReadCount < 50) {
+			DebugLog("[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
+				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
+			g_AdpcmDmaReadCount++;
+		}
+
 		Mar += MACTBL[(DmaReg[0x06]>>2)&3];
 		*(unsigned char **)&DmaReg[0x0C] = bswapl(Mar);
 	}
@@ -328,14 +341,17 @@ inline int	Adpcm::DmaGetByte() {
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 
-	
+	int logThis = (g_Adpcm2PcmCallCount < 30);
+	int oldPcm = Pcm;
+	int oldScale = Scale;
+
 	int	dltL;
 	dltL = dltLTBL[Scale];
 	dltL = (dltL&(adpcm&4?-1:0)) + ((dltL>>1)&(adpcm&2?-1:0)) + ((dltL>>2)&(adpcm&1?-1:0)) + (dltL>>3);
 	int sign = adpcm&8?-1:0;
 	dltL = (dltL^sign)+(sign&1);
 	Pcm += dltL;
-	
+
 
 	if ((unsigned int)(Pcm+MAXPCMVAL) > (unsigned int)(MAXPCMVAL*2)) {
 		if ((int)(Pcm+MAXPCMVAL) >= (int)(MAXPCMVAL*2)) {
@@ -355,11 +371,26 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 			Scale = 0;
 		}
 	}
+
+	if (logThis) {
+		DebugLog("[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
+			adpcm, dltL, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
+		g_Adpcm2PcmCallCount++;
+	}
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm() {
+	int logThis = (g_AdpcmGetPcmCallCount < 20);
+	if (logThis) {
+		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
+		g_AdpcmGetPcmCallCount++;
+	}
+
 	if (AdpcmReg & 0x80) {		// ADPCM stop
+		if (logThis) {
+			DebugLog("[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
+		}
 		return 0x80000000;
 	}
 
@@ -390,8 +421,9 @@ inline int Adpcm::GetPcm() {
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
+		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12;
-		int frac = (RateCounter << 16) / sampleInterval;
+		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
@@ -399,12 +431,25 @@ inline int Adpcm::GetPcm() {
 	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm;
 
-	return (OutPcm*TotalVolume)>>8;
+	int result = (OutPcm*TotalVolume)>>8;
+	if (logThis) {
+		DebugLog("[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+	}
+	return result;
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm62() {
+	int logThis = (g_AdpcmGetPcm62CallCount < 20);
+	if (logThis) {
+		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
+		g_AdpcmGetPcm62CallCount++;
+	}
+
 	if (AdpcmReg & 0x80) {		// ADPCM stop
+		if (logThis) {
+			DebugLog("[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
+		}
 		return 0x80000000;
 	}
 
@@ -436,8 +481,9 @@ inline int Adpcm::GetPcm62() {
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
+		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12*4;
-		int frac = (RateCounter << 16) / sampleInterval;
+		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
@@ -445,6 +491,11 @@ inline int Adpcm::GetPcm62() {
 	InpPcm_prev = InpPcm;
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
-	return (OutPcm>>9);
+
+	int result = ((OutPcm>>9)*TotalVolume)>>8;
+	if (logThis) {
+		DebugLog("[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+	}
+	return result;
 }
 

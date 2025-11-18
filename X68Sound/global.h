@@ -803,3 +803,71 @@ void DetectMMX() {
 	}
 }
 #endif
+
+// Debug log file support
+FILE* g_DebugLogFile = NULL;
+int g_DebugLogCounter = 0;
+const int MAX_DEBUG_LOG_ENTRIES = 1000;  // Limit log entries to prevent huge files
+
+// ADPCM debug counters (global so they can be reset on START)
+int g_AdpcmGetPcmCallCount = 0;
+int g_AdpcmGetPcm62CallCount = 0;
+int g_AdpcmDmaReadCount = 0;
+int g_AdpcmDmaErrorCount = 0;
+int g_Adpcm2PcmCallCount = 0;
+
+inline void DebugLog_Init() {
+	if (!g_Config.enable_debug_log) return;
+
+	// Get DLL directory
+	char dllPath[MAX_PATH];
+	char logPath[MAX_PATH];
+	GetModuleFileNameA(NULL, dllPath, MAX_PATH);
+
+	// Extract directory and append log filename
+	char* lastSlash = strrchr(dllPath, '\\');
+	if (lastSlash) {
+		*(lastSlash + 1) = '\0';
+		sprintf(logPath, "%sx68sound_debug.log", dllPath);
+	} else {
+		strcpy(logPath, "x68sound_debug.log");
+	}
+
+	// Open log file (overwrite mode to reset each time DLL is loaded)
+	g_DebugLogFile = fopen(logPath, "w");
+	g_DebugLogCounter = 0;
+
+	if (g_DebugLogFile) {
+		fprintf(g_DebugLogFile, "=== X68Sound Debug Log ===\n");
+		fprintf(g_DebugLogFile, "Log file: %s\n", logPath);
+		fprintf(g_DebugLogFile, "DLL attached at: %s\n", __DATE__ " " __TIME__);
+		fprintf(g_DebugLogFile, "\n");
+		fflush(g_DebugLogFile);
+	}
+}
+
+inline void DebugLog_Close() {
+	if (g_DebugLogFile) {
+		fprintf(g_DebugLogFile, "\n=== Log closed ===\n");
+		fclose(g_DebugLogFile);
+		g_DebugLogFile = NULL;
+	}
+}
+
+inline void DebugLog(const char* format, ...) {
+	if (!g_Config.enable_debug_log || !g_DebugLogFile) return;
+	if (g_DebugLogCounter >= MAX_DEBUG_LOG_ENTRIES) return;
+
+	va_list args;
+	va_start(args, format);
+	vfprintf(g_DebugLogFile, format, args);
+	va_end(args);
+	fflush(g_DebugLogFile);
+
+	g_DebugLogCounter++;
+
+	if (g_DebugLogCounter == MAX_DEBUG_LOG_ENTRIES) {
+		fprintf(g_DebugLogFile, "\n[Log limit reached - no more entries will be written]\n");
+		fflush(g_DebugLogFile);
+	}
+}

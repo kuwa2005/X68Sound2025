@@ -1499,6 +1499,8 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 	}
 
 	// Debug logging
+	DebugLog("[Opm::Start] samprate=%d, opmflag=%d, adpcmflag=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
+		samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
 	if (g_Config.enable_debug_log) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] Start: samprate=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
@@ -1894,13 +1896,32 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 	}
 	return;
 #endif
-	
+
+	unsigned char oldAdpcmReg = adpcm.AdpcmReg;
 
 	if (data & 0x02) {
 		adpcm.AdpcmReg &= 0x7F;
+		static int adpcmStartCount = 0;
+		if (adpcmStartCount < 10) {
+			// Reset debug counters on START to see post-START behavior
+			g_AdpcmGetPcmCallCount = 0;
+			g_AdpcmGetPcm62CallCount = 0;
+			g_AdpcmDmaReadCount = 0;
+			g_AdpcmDmaErrorCount = 0;
+			g_Adpcm2PcmCallCount = 0;
+			DebugLog("[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d) [DEBUG COUNTERS RESET]\n",
+				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStartCount);
+			adpcmStartCount++;
+		}
 	} else if (data & 0x01) {
 		adpcm.AdpcmReg |= 0x80;
 		adpcm.Reset();
+		static int adpcmStopCount = 0;
+		if (adpcmStopCount < 10) {
+			DebugLog("[Opm::AdpcmPoke] STOP: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStopCount);
+			adpcmStopCount++;
+		}
 	}
 }
 inline unsigned char Opm::PpiPeek() {
@@ -2089,6 +2110,7 @@ inline int Opm::Pcm8_Abort() {
 inline int Opm::SetTotalVolume(int v) {
 	if ((unsigned int)v <= 65535) {
 		TotalVolume = v;
+		DebugLog("[Opm::SetTotalVolume] TotalVolume set to %d\n", TotalVolume);
 	}
 	return TotalVolume;
 }
