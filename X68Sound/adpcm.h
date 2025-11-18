@@ -559,16 +559,32 @@ inline int Adpcm::GetPcm() {
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
-	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+	// HPF formula: OutPcm = (InpPcm - InpPcm_prev) + feedback_coeff * OutPcm
+	// Save previous values for logging before updating
+	int hpf_input_log = InpPcm_for_hpf;
+	int hpf_prev_log = InpPcm_prev;
+	int hpf_outpcm_before = OutPcm;
+
+	int hpf_diff = (InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT);
+	int hpf_feedback = HPF_COEFF_A1_22KHZ * OutPcm;
+	OutPcm = (hpf_diff + hpf_feedback) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
-	// Saturate OutPcm to prevent overflow when multiplying with TotalVolume
-	// Limit to ±80000 which gives ±100000 after TotalVolume multiplication (safe margin before final clipping)
-	const int OUT_PCM_LIMIT = 80000;
-	if (OutPcm > OUT_PCM_LIMIT) {
-		OutPcm = OUT_PCM_LIMIT;
-	} else if (OutPcm < -OUT_PCM_LIMIT) {
-		OutPcm = -OUT_PCM_LIMIT;
+	// Prevent HPF filter oscillation by resetting filter state when output saturates
+	// When OutPcm reaches saturation level (±70000), the feedback term becomes huge
+	// (459 * 70000 / 512 = 62,695), causing permanent oscillation and beep artifacts.
+	// Solution: Reset OutPcm to a smaller value to break the feedback loop.
+	const int OUT_PCM_LIMIT = 70000;
+	const int OUT_PCM_RESET_THRESHOLD = 65000;  // Reset if approaching saturation
+
+	if (OutPcm > OUT_PCM_RESET_THRESHOLD) {
+		// Approaching positive saturation - reset to break feedback loop
+		OutPcm = InpPcm_for_hpf >> HPF_SHIFT;  // Reset to input value (no feedback)
+		if (OutPcm > OUT_PCM_LIMIT) OutPcm = OUT_PCM_LIMIT;
+	} else if (OutPcm < -OUT_PCM_RESET_THRESHOLD) {
+		// Approaching negative saturation - reset to break feedback loop
+		OutPcm = InpPcm_for_hpf >> HPF_SHIFT;  // Reset to input value (no feedback)
+		if (OutPcm < -OUT_PCM_LIMIT) OutPcm = -OUT_PCM_LIMIT;
 	}
 
 	int result = (OutPcm*TotalVolume)>>8;
@@ -590,14 +606,13 @@ inline int Adpcm::GetPcm() {
 
 	// Detailed HPF filter state logging (first 200 samples)
 	if (g_Config.debug_log_level >= 2 && g_AdpcmHpfLogCount < 200) {
-		int hpf_input = InpPcm_for_hpf;
-		int hpf_prev = InpPcm_prev;
-		int hpf_feedback_term = (HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
-		int hpf_diff_term = (hpf_input - hpf_prev) << HPF_SHIFT;
+		// Use saved values from BEFORE HPF calculation for accurate logging
+		int hpf_feedback_term_before = (HPF_COEFF_A1_22KHZ * hpf_outpcm_before) >> HPF_SHIFT;
+		int hpf_diff_term = hpf_input_log - hpf_prev_log;
 
-		DebugLog(2, "[HPF #%03d] Input=%d, Prev=%d, Diff=%d, Feedback=%d, OutPcm=%d, Scale=%d, Pcm=%d, RateCounter=%d, result=%d\n",
-			g_AdpcmHpfLogCount, hpf_input, hpf_prev, hpf_diff_term >> HPF_SHIFT,
-			hpf_feedback_term, OutPcm, Scale, Pcm, RateCounter, result);
+		DebugLog(2, "[HPF #%03d] Input=%d, Prev=%d, Diff=%d, Feedback=%d, OutPcm_before=%d, OutPcm_after=%d, Scale=%d, Pcm=%d, RateCounter=%d, result=%d\n",
+			g_AdpcmHpfLogCount, hpf_input_log, hpf_prev_log, hpf_diff_term,
+			hpf_feedback_term_before, hpf_outpcm_before, OutPcm, Scale, Pcm, RateCounter, result);
 		g_AdpcmHpfLogCount++;
 	}
 
@@ -737,26 +752,33 @@ inline int Adpcm::GetPcm62() {
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
+	// Two-stage cascade filter for better DC offset removal
 	OutInpPcm = (InpPcm_for_hpf<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
-	// Saturate OutInpPcm to prevent overflow in second filter stage
+	// Prevent first stage oscillation by resetting if approaching saturation
 	const int OUT_INP_PCM_LIMIT = 30000000;  // ~58000 after >>9 shift
-	if (OutInpPcm > OUT_INP_PCM_LIMIT) {
-		OutInpPcm = OUT_INP_PCM_LIMIT;
-	} else if (OutInpPcm < -OUT_INP_PCM_LIMIT) {
-		OutInpPcm = -OUT_INP_PCM_LIMIT;
+	const int OUT_INP_PCM_RESET_THRESHOLD = 27000000;
+	if (OutInpPcm > OUT_INP_PCM_RESET_THRESHOLD) {
+		OutInpPcm = (InpPcm_for_hpf<<9);  // Reset to input
+		if (OutInpPcm > OUT_INP_PCM_LIMIT) OutInpPcm = OUT_INP_PCM_LIMIT;
+	} else if (OutInpPcm < -OUT_INP_PCM_RESET_THRESHOLD) {
+		OutInpPcm = (InpPcm_for_hpf<<9);  // Reset to input
+		if (OutInpPcm < -OUT_INP_PCM_LIMIT) OutInpPcm = -OUT_INP_PCM_LIMIT;
 	}
 
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
 
-	// Saturate OutPcm to prevent overflow when multiplying with TotalVolume
-	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift, gives safe margin before clipping
-	if (OutPcm > OUT_PCM_LIMIT_62) {
-		OutPcm = OUT_PCM_LIMIT_62;
-	} else if (OutPcm < -OUT_PCM_LIMIT_62) {
-		OutPcm = -OUT_PCM_LIMIT_62;
+	// Prevent second stage oscillation by resetting if approaching saturation
+	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift
+	const int OUT_PCM_RESET_THRESHOLD_62 = 45000000;
+	if (OutPcm > OUT_PCM_RESET_THRESHOLD_62) {
+		OutPcm = OutInpPcm;  // Reset to first stage output
+		if (OutPcm > OUT_PCM_LIMIT_62) OutPcm = OUT_PCM_LIMIT_62;
+	} else if (OutPcm < -OUT_PCM_RESET_THRESHOLD_62) {
+		OutPcm = OutInpPcm;  // Reset to first stage output
+		if (OutPcm < -OUT_PCM_LIMIT_62) OutPcm = -OUT_PCM_LIMIT_62;
 	}
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
