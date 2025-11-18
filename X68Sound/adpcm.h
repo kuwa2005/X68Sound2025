@@ -564,11 +564,29 @@ inline int Adpcm::GetPcm() {
 
 	int result = (OutPcm*TotalVolume)>>8;
 
+	// Saturate final result to prevent clipping in mixer
+	// Theoretical range is ±524288 (-32768<<4 to +32768<<4), but we use ±100000 for safety
+	const int RESULT_LIMIT = 100000;
+	int result_saturated = 0;
+	if (result > RESULT_LIMIT) {
+		result = RESULT_LIMIT;
+		result_saturated = 1;
+	} else if (result < -RESULT_LIMIT) {
+		result = -RESULT_LIMIT;
+		result_saturated = 1;
+	}
+
 	// Anomaly detection logging (Level 2+)
 	if (g_Config.debug_log_level >= 2) {
 		static int anomaly_count = 0;
 		int is_anomaly = 0;
 		char anomaly_reason[256] = "";
+
+		// Check for result saturation
+		if (result_saturated) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result saturated to %d; ", result);
+		}
 
 		// Check for abnormal InpPcm values
 		int inppcm_limit = (g_Config.adpcm_mode == 1) ? (32767 << 8) : (2047 << 8);
@@ -578,13 +596,13 @@ inline int Adpcm::GetPcm() {
 				InpPcm_for_hpf, inppcm_limit);
 		}
 
-		// Check for HPF filter divergence
-		if (abs(OutPcm) > 100000) {
+		// Check for HPF filter saturation
+		if (abs(OutPcm) >= OUT_PCM_LIMIT) {
 			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d HPF divergence; ", OutPcm);
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
 		}
 
-		// Check for near-clipping output
+		// Check for near-clipping output (even after saturation)
 		if (abs(result) > 30000) {
 			is_anomaly = 1;
 			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
@@ -704,11 +722,29 @@ inline int Adpcm::GetPcm62() {
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
 
+	// Saturate final result to prevent clipping in mixer
+	// Theoretical range is ±524288 (-32768<<4 to +32768<<4), but we use ±100000 for safety
+	const int RESULT_LIMIT = 100000;
+	int result_saturated = 0;
+	if (result > RESULT_LIMIT) {
+		result = RESULT_LIMIT;
+		result_saturated = 1;
+	} else if (result < -RESULT_LIMIT) {
+		result = -RESULT_LIMIT;
+		result_saturated = 1;
+	}
+
 	// Anomaly detection logging (Level 2+)
 	if (g_Config.debug_log_level >= 2) {
 		static int anomaly_count = 0;
 		int is_anomaly = 0;
 		char anomaly_reason[256] = "";
+
+		// Check for result saturation
+		if (result_saturated) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result saturated to %d; ", result);
+		}
 
 		// Check for abnormal InpPcm values
 		int inppcm_limit = (g_Config.adpcm_mode == 1) ? (32767 << 8) : (2047 << 8);
@@ -718,19 +754,19 @@ inline int Adpcm::GetPcm62() {
 				InpPcm_for_hpf, inppcm_limit);
 		}
 
-		// Check for HPF filter divergence (GetPcm62 uses different scaling)
-		if (abs(OutPcm) > 100000000) {  // Much larger threshold for GetPcm62 due to >>9 shift
+		// Check for HPF filter saturation
+		if (abs(OutPcm) >= OUT_PCM_LIMIT_62) {
 			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d HPF divergence; ", OutPcm);
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
 		}
 
-		// Check for intermediate filter divergence
-		if (abs(OutInpPcm) > 50000000) {
+		// Check for intermediate filter saturation
+		if (abs(OutInpPcm) >= OUT_INP_PCM_LIMIT) {
 			is_anomaly = 1;
-			sprintf(anomaly_reason + strlen(anomaly_reason), "OutInpPcm=%d intermediate divergence; ", OutInpPcm);
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutInpPcm=%d saturated; ", OutInpPcm);
 		}
 
-		// Check for near-clipping output
+		// Check for near-clipping output (even after saturation)
 		if (abs(result) > 30000) {
 			is_anomaly = 1;
 			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
