@@ -272,22 +272,20 @@ inline int	Adpcm::DmaGetByte() {
 		int mem;
 		mem = MemRead(Mar);
 		if (mem == -1) {
-			static int dmaErrorCount = 0;
-			if (dmaErrorCount < 5) {
+			if (g_AdpcmDmaErrorCount < 5) {
 				DebugLog("[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
-					(unsigned int)(uintptr_t)Mar, dmaErrorCount);
-				dmaErrorCount++;
+					(unsigned int)(uintptr_t)Mar, g_AdpcmDmaErrorCount);
+				g_AdpcmDmaErrorCount++;
 			}
 			DmaError(0x09);	// Bus error (destination address/counter)
 			return 0x80000000;
 		}
 		DmaLastValue = mem;
 
-		static int dmaReadCount = 0;
-		if (dmaReadCount < 10) {
+		if (g_AdpcmDmaReadCount < 50) {
 			DebugLog("[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
-				(unsigned int)(uintptr_t)Mar, mem, dmaReadCount);
-			dmaReadCount++;
+				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
+			g_AdpcmDmaReadCount++;
 		}
 
 		Mar += MACTBL[(DmaReg[0x06]>>2)&3];
@@ -374,11 +372,10 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm() {
-	static int getPcmCallCount = 0;
-	int logThis = (getPcmCallCount < 20);
+	int logThis = (g_AdpcmGetPcmCallCount < 20);
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, getPcmCallCount);
-		getPcmCallCount++;
+		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
+		g_AdpcmGetPcmCallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
@@ -433,11 +430,10 @@ inline int Adpcm::GetPcm() {
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm62() {
-	static int getPcm62CallCount = 0;
-	int logThis = (getPcm62CallCount < 20);
+	int logThis = (g_AdpcmGetPcm62CallCount < 20);
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, getPcm62CallCount);
-		getPcm62CallCount++;
+		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
+		g_AdpcmGetPcm62CallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop

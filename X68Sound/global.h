@@ -809,6 +809,12 @@ FILE* g_DebugLogFile = NULL;
 int g_DebugLogCounter = 0;
 const int MAX_DEBUG_LOG_ENTRIES = 1000;  // Limit log entries to prevent huge files
 
+// ADPCM debug counters (global so they can be reset on START)
+int g_AdpcmGetPcmCallCount = 0;
+int g_AdpcmGetPcm62CallCount = 0;
+int g_AdpcmDmaReadCount = 0;
+int g_AdpcmDmaErrorCount = 0;
+
 inline void DebugLog_Init() {
 	if (!g_Config.enable_debug_log) return;
 

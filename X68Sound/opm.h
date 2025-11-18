@@ -1903,7 +1903,12 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 		adpcm.AdpcmReg &= 0x7F;
 		static int adpcmStartCount = 0;
 		if (adpcmStartCount < 10) {
-			DebugLog("[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+			// Reset debug counters on START to see post-START behavior
+			g_AdpcmGetPcmCallCount = 0;
+			g_AdpcmGetPcm62CallCount = 0;
+			g_AdpcmDmaReadCount = 0;
+			g_AdpcmDmaErrorCount = 0;
+			DebugLog("[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d) [DEBUG COUNTERS RESET]\n",
 				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStartCount);
 			adpcmStartCount++;
 		}
