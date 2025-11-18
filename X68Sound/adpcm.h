@@ -445,6 +445,6 @@ inline int Adpcm::GetPcm62() {
 	InpPcm_prev = InpPcm;
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
-	return (OutPcm>>9);
+	return ((OutPcm>>9)*TotalVolume)>>8;
 }
 

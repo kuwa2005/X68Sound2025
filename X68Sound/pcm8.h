@@ -430,7 +430,7 @@ inline int Pcm8::GetPcm62() {
 		effectiveVolume = CurrentVolume;
 	}
 
-	return ((OutPcm>>9)*effectiveVolume)>>4;
+	return ((((OutPcm>>9)*effectiveVolume)>>4)*TotalVolume)>>8;
 }
 
 
