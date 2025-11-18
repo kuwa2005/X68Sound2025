@@ -12,6 +12,7 @@
 #include	"lfo.h"
 #include	"adpcm.h"
 #include	"pcm8.h"
+#include	"audioeffects.h"
 #include	"opm.h"
 
 

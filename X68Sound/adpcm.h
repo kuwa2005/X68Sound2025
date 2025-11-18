@@ -8,6 +8,9 @@ class Adpcm {
 	int	RateCounter;
 	int	N1Data;	// Storage for ADPCM 1 sample data
 	int N1DataFlag;	// 0 or 1
+	int SaturationCounter;		// Counter for consecutive saturation detection (beep prevention)
+	int SaturationCounter62_1;	// Counter for GetPcm62 first stage
+	int SaturationCounter62_2;	// Counter for GetPcm62 second stage
 
 	inline void adpcm2pcm(unsigned char adpcm);
 	inline void adpcm2pcm_msm6258(unsigned char adpcm);
@@ -45,6 +48,10 @@ int FinishCounter;
 
 
 Adpcm::Adpcm(void) {
+	// Initialize saturation detection counters
+	SaturationCounter = 0;
+	SaturationCounter62_1 = 0;
+	SaturationCounter62_2 = 0;
 }
 
 inline void Adpcm::SetAdpcmRate(int rate) {
@@ -124,11 +131,39 @@ inline void Adpcm::Reset() {
 	N1Data = 0;
 	N1DataFlag = 0;
 
+	// Reset RateCounter to prevent inheriting timing state from previous sound
+	// This prevents pitch-dependent beep artifacts caused by misaligned sample timing
+	RateCounter = 0;
+
+	// Reset saturation counters to prevent false detection from previous playback
+	SaturationCounter = 0;
+	SaturationCounter62_1 = 0;
+	SaturationCounter62_2 = 0;
 
 }
 
 
 inline void Adpcm::DmaError(unsigned char errcode) {
+	// Enhanced DMA error logging
+	if (g_Config.debug_log_level >= 2) {
+		const char *error_desc = "";
+		switch (errcode) {
+			case 0x01: error_desc = "Configuration error (invalid CHAIN setting)"; break;
+			case 0x09: error_desc = "Bus error (destination address/counter)"; break;
+			case 0x0B: error_desc = "Bus error (base address/counter)"; break;
+			case 0x0D: error_desc = "Count error (destination address/counter)"; break;
+			case 0x11: error_desc = "Software abort error (SAB set while DMA active)"; break;
+			default: error_desc = "Unknown error"; break;
+		}
+		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		unsigned short mtc = bswapw(*(unsigned short *)&DmaReg[0x0A]);
+		unsigned char *bar = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+		unsigned short btc = bswapw(*(unsigned short *)&DmaReg[0x1A]);
+		DebugLog(2, "[ADPCM DMA ERROR] errcode=0x%02X: %s\n", errcode, error_desc);
+		DebugLog(2, "  MAR=0x%08X, MTC=%d, BAR=0x%08X, BTC=%d, DmaReg[0x07]=0x%02X\n",
+			(unsigned int)(uintptr_t)mar, mtc, (unsigned int)(uintptr_t)bar, btc, DmaReg[0x07]);
+	}
+
 	DmaReg[0x00] &= 0xF7;		// ACT=0
 	DmaReg[0x00] |= 0x90;		// COC=ERR=1
 	DmaReg[0x01] = errcode;		// CER=errorcode
@@ -139,6 +174,14 @@ inline void Adpcm::DmaError(unsigned char errcode) {
 	}
 }
 inline void Adpcm::DmaFinish() {
+	// Enhanced DMA completion logging
+	if (g_Config.debug_log_level >= 3) {
+		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		unsigned short mtc = bswapw(*(unsigned short *)&DmaReg[0x0A]);
+		DebugLog(3, "[ADPCM DMA FINISH] Transfer complete. MAR=0x%08X, MTC=%d\n",
+			(unsigned int)(uintptr_t)mar, mtc);
+	}
+
 	DmaReg[0x00] &= 0xF7;		// ACT=0
 	DmaReg[0x00] |= 0x80;		// COC=1
 	if (DmaReg[0x07] & 0x08) {	// INT==1?
@@ -186,6 +229,12 @@ inline int Adpcm::DmaArrayChainSetNextMtcMar() {
 	mem4 = MemRead(Bar++);
 	mem5 = MemRead(Bar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5) == -1) {
+		if (g_Config.debug_log_level >= 2) {
+			unsigned char *bar_orig = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+			unsigned short btc = bswapw(*(unsigned short *)&DmaReg[0x1A]);
+			DebugLog(2, "[ADPCM DMA ARRAY CHAIN] MemRead failed in array chain at BAR=0x%08X, BTC=%d\n",
+				(unsigned int)(uintptr_t)bar_orig, btc);
+		}
 			DmaError(0x0B);		// Bus error (base address/counter)
 		return 1;
 	} 
@@ -225,6 +274,11 @@ inline int Adpcm::DmaLinkArrayChainSetNextMtcMar() {
 	mem8 = MemRead(Bar++);
 	mem9 = MemRead(Bar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5|mem6|mem7|mem8|mem9) == -1) {
+		if (g_Config.debug_log_level >= 2) {
+			unsigned char *bar_orig = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+			DebugLog(2, "[ADPCM DMA LINK ARRAY CHAIN] MemRead failed in link array chain at BAR=0x%08X\n",
+				(unsigned int)(uintptr_t)bar_orig);
+		}
 			DmaError(0x0B);		// Bus error (base address/counter)
 		return 1;
 	} 
@@ -283,12 +337,6 @@ inline int	Adpcm::DmaGetByte() {
 		}
 		DmaLastValue = mem;
 
-		if (g_AdpcmDmaReadCount < 50) {
-			DebugLog(3, "[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
-				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
-			g_AdpcmDmaReadCount++;
-		}
-
 		Mar += MACTBL[(DmaReg[0x06]>>2)&3];
 		*(unsigned char **)&DmaReg[0x0C] = bswapl(Mar);
 	}
@@ -298,16 +346,31 @@ inline int	Adpcm::DmaGetByte() {
 
 	try {
 	if (Mtc == 0) {
+		// Enhanced logging for DMA chain operations
+		if (g_Config.debug_log_level >= 3) {
+			DebugLog(3, "[ADPCM DMA CHAIN] MTC reached 0, checking chain mode: DmaReg[0x07]=0x%02X, DmaReg[0x05]=0x%02X\n",
+				DmaReg[0x07], DmaReg[0x05]);
+		}
+
 		if (DmaReg[0x07] & 0x40) {
+			if (g_Config.debug_log_level >= 3) {
+				DebugLog(3, "[ADPCM DMA CHAIN] Initiating Continue chain mode\n");
+			}
 			if (DmaContinueSetNextMtcMar()) {
 				throw "";
 			}
 		} else if (DmaReg[0x05] & 0x08) {
 			if (!(DmaReg[0x05] & 0x04)) {
+				if (g_Config.debug_log_level >= 3) {
+					DebugLog(3, "[ADPCM DMA CHAIN] Initiating Array chain mode\n");
+				}
 				if (DmaArrayChainSetNextMtcMar()) {
 					throw "";
 				}
 			} else {
+				if (g_Config.debug_log_level >= 3) {
+					DebugLog(3, "[ADPCM DMA CHAIN] Initiating Link Array chain mode\n");
+				}
 				if (DmaLinkArrayChainSetNextMtcMar()) {
 					throw "";
 				}
@@ -318,6 +381,9 @@ inline int	Adpcm::DmaGetByte() {
 //					throw "";
 //				}
 //			} else {
+				if (g_Config.debug_log_level >= 3) {
+					DebugLog(3, "[ADPCM DMA CHAIN] No chain mode, finishing DMA\n");
+				}
 				DmaFinish();
 				FinishCounter = 0;
 //			}
@@ -343,10 +409,6 @@ inline int	Adpcm::DmaGetByte() {
 // MSM6258 / IMA ADPCM high-quality decoder
 // -32767<<(4+4) <= InpPcm <= +32767<<(4+4)
 inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
-	int logThis = (g_Adpcm2PcmCallCount < 30);
-	int oldPcm = Pcm;
-	int oldScale = Scale;
-
 	// IMA ADPCM decoding algorithm with higher precision
 	int step = dltLTBL_MSM6258[Scale];
 	int diff = step >> 3;  // Initialize with step/8
@@ -380,30 +442,18 @@ inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
 	} else if (Scale < 0) {
 		Scale = 0;
 	}
-
-	if (logThis) {
-		DebugLog(3, "[adpcm2pcm_msm6258] adpcm=0x%02X, diff=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
-			adpcm, diff, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
-		g_Adpcm2PcmCallCount++;
-	}
 }
 
 
 // Legacy ADPCM decoder (original X68000)
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
-
-	int logThis = (g_Adpcm2PcmCallCount < 30);
-	int oldPcm = Pcm;
-	int oldScale = Scale;
-
 	int	dltL;
 	dltL = dltLTBL[Scale];
 	dltL = (dltL&(adpcm&4?-1:0)) + ((dltL>>1)&(adpcm&2?-1:0)) + ((dltL>>2)&(adpcm&1?-1:0)) + (dltL>>3);
 	int sign = adpcm&8?-1:0;
 	dltL = (dltL^sign)+(sign&1);
 	Pcm += dltL;
-
 
 	if ((unsigned int)(Pcm+MAXPCMVAL) > (unsigned int)(MAXPCMVAL*2)) {
 		if ((int)(Pcm+MAXPCMVAL) >= (int)(MAXPCMVAL*2)) {
@@ -423,26 +473,11 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 			Scale = 0;
 		}
 	}
-
-	if (logThis) {
-		DebugLog(3, "[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
-			adpcm, dltL, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
-		g_Adpcm2PcmCallCount++;
-	}
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm() {
-	int logThis = (g_AdpcmGetPcmCallCount < 20);
-	if (logThis) {
-		DebugLog(2, "[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
-		g_AdpcmGetPcmCallCount++;
-	}
-
 	if (AdpcmReg & 0x80) {		// ADPCM stop
-		if (logThis) {
-			DebugLog(2, "[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
-		}
 		return 0x80000000;
 	}
 
@@ -493,28 +528,58 @@ inline int Adpcm::GetPcm() {
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
-	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+	// HPF formula: OutPcm = (InpPcm - InpPcm_prev) + feedback_coeff * OutPcm
+	int hpf_diff = (InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT);
+	int hpf_feedback = HPF_COEFF_A1_22KHZ * OutPcm;
+	OutPcm = (hpf_diff + hpf_feedback) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
-	int result = (OutPcm*TotalVolume)>>8;
-	if (logThis) {
-		DebugLog(3, "[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+	// Prevent HPF filter oscillation by resetting filter state when output saturates
+	// When OutPcm reaches saturation level (±70000), the feedback term becomes huge
+	// (459 * 70000 / 512 = 62,695), causing permanent oscillation and beep artifacts.
+	// Solution: Detect consecutive saturation and aggressively reset to break feedback loop.
+	const int OUT_PCM_LIMIT = 70000;
+	const int OUT_PCM_RESET_THRESHOLD = 60000;  // Lowered from 65000 to catch oscillation earlier
+	const int OUT_PCM_HARD_THRESHOLD = 50000;   // If consecutive saturation occurs, use stricter limit
+
+	// Check if filter output is approaching saturation
+	int abs_OutPcm = (OutPcm >= 0) ? OutPcm : -OutPcm;
+	if (abs_OutPcm > OUT_PCM_RESET_THRESHOLD) {
+		SaturationCounter++;
+
+		// If consecutive saturation detected (2+ samples in a row), aggressively reset
+		if (SaturationCounter >= 2 || abs_OutPcm > OUT_PCM_HARD_THRESHOLD) {
+			// Complete filter state reset to break oscillation
+			OutPcm = 0;           // Reset to zero (most aggressive)
+			InpPcm_prev = 0;      // Also reset filter history
+			SaturationCounter = 0; // Reset counter after intervention
+		} else {
+			// Single saturation - gentle reset to input value
+			OutPcm = InpPcm_for_hpf >> HPF_SHIFT;
+			if (OutPcm > OUT_PCM_LIMIT) OutPcm = OUT_PCM_LIMIT;
+			if (OutPcm < -OUT_PCM_LIMIT) OutPcm = -OUT_PCM_LIMIT;
+		}
+	} else {
+		// Normal operation - clear saturation counter
+		SaturationCounter = 0;
 	}
+
+	int result = (OutPcm*TotalVolume)>>8;
+
+	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
+	const int RESULT_LIMIT = 40000;
+	if (result > RESULT_LIMIT) {
+		result = RESULT_LIMIT;
+	} else if (result < -RESULT_LIMIT) {
+		result = -RESULT_LIMIT;
+	}
+
 	return result;
 }
 
 // -32768<<4 <= retval <= +32768<<4
 inline int Adpcm::GetPcm62() {
-	int logThis = (g_AdpcmGetPcm62CallCount < 20);
-	if (logThis) {
-		DebugLog(2, "[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
-		g_AdpcmGetPcm62CallCount++;
-	}
-
 	if (AdpcmReg & 0x80) {		// ADPCM stop
-		if (logThis) {
-			DebugLog(2, "[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
-		}
 		return 0x80000000;
 	}
 
@@ -566,15 +631,71 @@ inline int Adpcm::GetPcm62() {
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
+	// Two-stage cascade filter for better DC offset removal
 	OutInpPcm = (InpPcm_for_hpf<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
+
+	// Prevent first stage oscillation by detecting consecutive saturation
+	const int OUT_INP_PCM_LIMIT = 30000000;  // ~58000 after >>9 shift
+	const int OUT_INP_PCM_RESET_THRESHOLD = 24000000;  // Lowered from 27M for earlier detection
+	const int OUT_INP_PCM_HARD_THRESHOLD = 20000000;
+
+	int abs_OutInpPcm = (OutInpPcm >= 0) ? OutInpPcm : -OutInpPcm;
+	if (abs_OutInpPcm > OUT_INP_PCM_RESET_THRESHOLD) {
+		SaturationCounter62_1++;
+
+		if (SaturationCounter62_1 >= 2 || abs_OutInpPcm > OUT_INP_PCM_HARD_THRESHOLD) {
+			// Consecutive saturation - aggressive reset
+			OutInpPcm = 0;
+			InpPcm_prev = 0;
+			SaturationCounter62_1 = 0;
+		} else {
+			// Single saturation - gentle reset
+			OutInpPcm = (InpPcm_for_hpf<<9);
+			if (OutInpPcm > OUT_INP_PCM_LIMIT) OutInpPcm = OUT_INP_PCM_LIMIT;
+			if (OutInpPcm < -OUT_INP_PCM_LIMIT) OutInpPcm = -OUT_INP_PCM_LIMIT;
+		}
+	} else {
+		SaturationCounter62_1 = 0;
+	}
+
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
 
-	int result = ((OutPcm>>9)*TotalVolume)>>8;
-	if (logThis) {
-		DebugLog(3, "[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+	// Prevent second stage oscillation by detecting consecutive saturation
+	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift
+	const int OUT_PCM_RESET_THRESHOLD_62 = 40000000;  // Lowered from 45M for earlier detection
+	const int OUT_PCM_HARD_THRESHOLD_62 = 35000000;
+
+	int abs_OutPcm_62 = (OutPcm >= 0) ? OutPcm : -OutPcm;
+	if (abs_OutPcm_62 > OUT_PCM_RESET_THRESHOLD_62) {
+		SaturationCounter62_2++;
+
+		if (SaturationCounter62_2 >= 2 || abs_OutPcm_62 > OUT_PCM_HARD_THRESHOLD_62) {
+			// Consecutive saturation - aggressive reset
+			OutPcm = 0;
+			OutInpPcm_prev = 0;
+			SaturationCounter62_2 = 0;
+		} else {
+			// Single saturation - gentle reset to first stage output
+			OutPcm = OutInpPcm;
+			if (OutPcm > OUT_PCM_LIMIT_62) OutPcm = OUT_PCM_LIMIT_62;
+			if (OutPcm < -OUT_PCM_LIMIT_62) OutPcm = -OUT_PCM_LIMIT_62;
+		}
+	} else {
+		SaturationCounter62_2 = 0;
 	}
+
+	int result = ((OutPcm>>9)*TotalVolume)>>8;
+
+	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
+	const int RESULT_LIMIT = 40000;
+	if (result > RESULT_LIMIT) {
+		result = RESULT_LIMIT;
+	} else if (result < -RESULT_LIMIT) {
+		result = -RESULT_LIMIT;
+	}
+
 	return result;
 }
 
