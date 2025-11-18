@@ -930,6 +930,15 @@ int g_AdpcmDmaReadCount = 0;
 int g_AdpcmDmaErrorCount = 0;
 int g_Adpcm2PcmCallCount = 0;
 
+// ADPCM sample data recording for beep debugging
+#define ADPCM_RAW_DATA_BUFFER_SIZE 200
+unsigned char g_AdpcmRawDataBuffer[ADPCM_RAW_DATA_BUFFER_SIZE];
+int g_AdpcmRawDataCount = 0;
+int g_AdpcmRawDataDumped = 0;  // Flag to prevent multiple dumps
+
+// Detailed HPF filter state logging counter
+int g_AdpcmHpfLogCount = 0;
+
 inline void DebugLog_Init() {
 	if (g_Config.debug_log_level == 0) return;
 

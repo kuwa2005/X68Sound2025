@@ -325,6 +325,12 @@ inline int	Adpcm::DmaGetByte() {
 		}
 		DmaLastValue = mem;
 
+		// Record raw ADPCM data for later analysis
+		if (g_AdpcmRawDataCount < ADPCM_RAW_DATA_BUFFER_SIZE) {
+			g_AdpcmRawDataBuffer[g_AdpcmRawDataCount] = (unsigned char)mem;
+			g_AdpcmRawDataCount++;
+		}
+
 		if (g_AdpcmDmaReadCount < 50) {
 			DebugLog(3, "[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
 				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
@@ -566,6 +572,34 @@ inline int Adpcm::GetPcm() {
 	}
 
 	int result = (OutPcm*TotalVolume)>>8;
+
+	// Dump raw ADPCM sample data once we have collected enough
+	if (g_Config.debug_log_level >= 2 && !g_AdpcmRawDataDumped && g_AdpcmRawDataCount >= 100) {
+		DebugLog(2, "\n========== RAW ADPCM SAMPLE DATA (first %d bytes) ==========\n", g_AdpcmRawDataCount);
+		DebugLog(2, "AdpcmRate=%d (affects pitch/playback speed)\n", AdpcmRate);
+		for (int i = 0; i < g_AdpcmRawDataCount; i++) {
+			if (i % 16 == 0) {
+				if (i > 0) DebugLog(2, "\n");
+				DebugLog(2, "[%04d] ", i);
+			}
+			DebugLog(2, "%02X ", g_AdpcmRawDataBuffer[i]);
+		}
+		DebugLog(2, "\n========== END RAW ADPCM SAMPLE DATA ==========\n\n");
+		g_AdpcmRawDataDumped = 1;
+	}
+
+	// Detailed HPF filter state logging (first 200 samples)
+	if (g_Config.debug_log_level >= 2 && g_AdpcmHpfLogCount < 200) {
+		int hpf_input = InpPcm_for_hpf;
+		int hpf_prev = InpPcm_prev;
+		int hpf_feedback_term = (HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+		int hpf_diff_term = (hpf_input - hpf_prev) << HPF_SHIFT;
+
+		DebugLog(2, "[HPF #%03d] Input=%d, Prev=%d, Diff=%d, Feedback=%d, OutPcm=%d, Scale=%d, Pcm=%d, RateCounter=%d, result=%d\n",
+			g_AdpcmHpfLogCount, hpf_input, hpf_prev, hpf_diff_term >> HPF_SHIFT,
+			hpf_feedback_term, OutPcm, Scale, Pcm, RateCounter, result);
+		g_AdpcmHpfLogCount++;
+	}
 
 	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
 	// Testing shows 30000 is too low and causes clipping distortion (beeps from hard limiting).
