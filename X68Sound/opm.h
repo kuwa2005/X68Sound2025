@@ -1498,10 +1498,10 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 		samprate = g_Config.output_sample_rate;
 	}
 
-	// Debug logging
-	DebugLog("[Opm::Start] samprate=%d, opmflag=%d, adpcmflag=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
+	// Debug logging (Level 1: Basic information)
+	DebugLog(1, "[Opm::Start] samprate=%d, opmflag=%d, adpcmflag=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
 		samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
-	if (g_Config.enable_debug_log) {
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] Start: samprate=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
 			samprate, betw, pcmbuf, late, rev);
@@ -1562,8 +1562,8 @@ inline int Opm::StartPcm(int samprate, int opmflag, int adpcmflag, int pcmbuf) {
 		samprate = g_Config.output_sample_rate;
 	}
 
-	// Debug logging
-	if (g_Config.enable_debug_log) {
+	// Debug logging (Level 1: Basic information)
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] StartPcm: samprate=%d, pcmbuf=%d\n", samprate, pcmbuf);
 		OutputDebugStringA(logMsg);
@@ -1909,7 +1909,7 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 			g_AdpcmDmaReadCount = 0;
 			g_AdpcmDmaErrorCount = 0;
 			g_Adpcm2PcmCallCount = 0;
-			DebugLog("[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d) [DEBUG COUNTERS RESET]\n",
+			DebugLog(2, "[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d) [DEBUG COUNTERS RESET]\n",
 				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStartCount);
 			adpcmStartCount++;
 		}
@@ -1918,7 +1918,7 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 		adpcm.Reset();
 		static int adpcmStopCount = 0;
 		if (adpcmStopCount < 10) {
-			DebugLog("[Opm::AdpcmPoke] STOP: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+			DebugLog(2, "[Opm::AdpcmPoke] STOP: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
 				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStopCount);
 			adpcmStopCount++;
 		}
@@ -2110,7 +2110,7 @@ inline int Opm::Pcm8_Abort() {
 inline int Opm::SetTotalVolume(int v) {
 	if ((unsigned int)v <= 65535) {
 		TotalVolume = v;
-		DebugLog("[Opm::SetTotalVolume] TotalVolume set to %d\n", TotalVolume);
+		DebugLog(1, "[Opm::SetTotalVolume] TotalVolume set to %d\n", TotalVolume);
 	}
 	return TotalVolume;
 }

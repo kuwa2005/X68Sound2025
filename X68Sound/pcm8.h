@@ -83,7 +83,7 @@ inline void Pcm8::Init() {
 
 	static int pcm8InitCount = 0;
 	if (pcm8InitCount < 8) {
-		DebugLog("[Pcm8::Init] AdpcmReg=0x%02X, Volume=%d, CurrentVolume=%d (init_count=%d)\n",
+		DebugLog(1, "[Pcm8::Init] AdpcmReg=0x%02X, Volume=%d, CurrentVolume=%d (init_count=%d)\n",
 			AdpcmReg, Volume, CurrentVolume, pcm8InitCount);
 		pcm8InitCount++;
 	}
@@ -320,6 +320,9 @@ inline int Pcm8::GetPcm() {
 		RateCounter += 15625*12;
 	}
 
+	// Save actual decoded value for HPF filter (before interpolation)
+	int InpPcm_for_hpf = InpPcm;
+
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
@@ -329,9 +332,9 @@ inline int Pcm8::GetPcm() {
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
-	// Apply HPF filter (magic numbers replaced with constants)
-	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
-	InpPcm_prev = InpPcm;
+	// Apply HPF filter (using actual decoded value, not interpolated value)
+	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
 	int effectiveVolume = Volume;

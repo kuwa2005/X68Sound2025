@@ -10,6 +10,7 @@ class Adpcm {
 	int N1DataFlag;	// 0 or 1
 
 	inline void adpcm2pcm(unsigned char adpcm);
+	inline void adpcm2pcm_msm6258(unsigned char adpcm);
 
 public:
 	void (CALLBACK *IntProc)();	// Interrupt address
@@ -106,7 +107,7 @@ inline void Adpcm::Init() {
 		}
 	}
 	FinishCounter = 3;
-	DebugLog("[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
+	DebugLog(1, "[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
 }
 inline void Adpcm::InitSamprate() {
 	RateCounter = 0;
@@ -273,7 +274,7 @@ inline int	Adpcm::DmaGetByte() {
 		mem = MemRead(Mar);
 		if (mem == -1) {
 			if (g_AdpcmDmaErrorCount < 5) {
-				DebugLog("[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
+				DebugLog(3, "[Adpcm::DmaGetByte] MemRead FAILED at address=0x%08X (error_count=%d)\n",
 					(unsigned int)(uintptr_t)Mar, g_AdpcmDmaErrorCount);
 				g_AdpcmDmaErrorCount++;
 			}
@@ -283,7 +284,7 @@ inline int	Adpcm::DmaGetByte() {
 		DmaLastValue = mem;
 
 		if (g_AdpcmDmaReadCount < 50) {
-			DebugLog("[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
+			DebugLog(3, "[Adpcm::DmaGetByte] MemRead SUCCESS at address=0x%08X, data=0x%02X (read_count=%d)\n",
 				(unsigned int)(uintptr_t)Mar, mem, g_AdpcmDmaReadCount);
 			g_AdpcmDmaReadCount++;
 		}
@@ -336,8 +337,59 @@ inline int	Adpcm::DmaGetByte() {
 
 
 #define	MAXPCMVAL	(2047)
+#define	MAXPCMVAL_MSM6258	(32767)
 
 
+// MSM6258 / IMA ADPCM high-quality decoder
+// -32767<<(4+4) <= InpPcm <= +32767<<(4+4)
+inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
+	int logThis = (g_Adpcm2PcmCallCount < 30);
+	int oldPcm = Pcm;
+	int oldScale = Scale;
+
+	// IMA ADPCM decoding algorithm with higher precision
+	int step = dltLTBL_MSM6258[Scale];
+	int diff = step >> 3;  // Initialize with step/8
+
+	// Calculate difference using 4-bit ADPCM nibble
+	if (adpcm & 4) diff += step;
+	if (adpcm & 2) diff += (step >> 1);
+	if (adpcm & 1) diff += (step >> 2);
+
+	// Apply sign
+	if (adpcm & 8) {
+		Pcm -= diff;
+	} else {
+		Pcm += diff;
+	}
+
+	// Clamp to 16-bit range
+	if (Pcm > MAXPCMVAL_MSM6258) {
+		Pcm = MAXPCMVAL_MSM6258;
+	} else if (Pcm < -MAXPCMVAL_MSM6258) {
+		Pcm = -MAXPCMVAL_MSM6258;
+	}
+
+	// Output with higher resolution (16-bit aligned, shifted for consistency)
+	InpPcm = Pcm << (4+4);
+
+	// Update scale index
+	Scale += DCT_MSM6258[adpcm];
+	if (Scale > 88) {
+		Scale = 88;
+	} else if (Scale < 0) {
+		Scale = 0;
+	}
+
+	if (logThis) {
+		DebugLog(3, "[adpcm2pcm_msm6258] adpcm=0x%02X, diff=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
+			adpcm, diff, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
+		g_Adpcm2PcmCallCount++;
+	}
+}
+
+
+// Legacy ADPCM decoder (original X68000)
 // -2047<<(4+4) <= InpPcm <= +2047<<(4+4)
 inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 
@@ -373,7 +425,7 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 	}
 
 	if (logThis) {
-		DebugLog("[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
+		DebugLog(3, "[adpcm2pcm] adpcm=0x%02X, dltL=%d, Scale: %d->%d, Pcm: %d->%d, InpPcm=%d (count=%d)\n",
 			adpcm, dltL, oldScale, Scale, oldPcm, Pcm, InpPcm, g_Adpcm2PcmCallCount);
 		g_Adpcm2PcmCallCount++;
 	}
@@ -383,13 +435,13 @@ inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 inline int Adpcm::GetPcm() {
 	int logThis = (g_AdpcmGetPcmCallCount < 20);
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
+		DebugLog(2, "[Adpcm::GetPcm] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcmCallCount);
 		g_AdpcmGetPcmCallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
 		if (logThis) {
-			DebugLog("[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
+			DebugLog(2, "[Adpcm::GetPcm] STOPPED, returning 0x80000000\n");
 		}
 		return 0x80000000;
 	}
@@ -408,15 +460,28 @@ inline int Adpcm::GetPcm() {
 				RateCounter = 0;
 				return 0x80000000;
 			}
-			adpcm2pcm(N10Data & 0x0F);	// Assign value to InpPcm
+			// Switch decoder based on ADPCM mode
+			if (g_Config.adpcm_mode == 1) {
+				adpcm2pcm_msm6258(N10Data & 0x0F);	// MSM6258 high-quality decoder
+			} else {
+				adpcm2pcm(N10Data & 0x0F);	// Legacy decoder
+			}
 			N1Data = (N10Data >> 4) & 0x0F;
 			N1DataFlag = 1;
 		} else {
-			adpcm2pcm(N1Data);			// Assign value to InpPcm
+			// Switch decoder based on ADPCM mode
+			if (g_Config.adpcm_mode == 1) {
+				adpcm2pcm_msm6258(N1Data);	// MSM6258 high-quality decoder
+			} else {
+				adpcm2pcm(N1Data);	// Legacy decoder
+			}
 			N1DataFlag = 0;
 		}
 		RateCounter += 15625*12;
 	}
+
+	// Save actual decoded value for HPF filter (before interpolation)
+	int InpPcm_for_hpf = InpPcm;
 
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
@@ -427,13 +492,13 @@ inline int Adpcm::GetPcm() {
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
-	// Apply HPF filter (magic numbers replaced with constants)
-	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
-	InpPcm_prev = InpPcm;
+	// Apply HPF filter (using actual decoded value, not interpolated value)
+	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
 	int result = (OutPcm*TotalVolume)>>8;
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+		DebugLog(3, "[Adpcm::GetPcm] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
 	}
 	return result;
 }
@@ -442,13 +507,13 @@ inline int Adpcm::GetPcm() {
 inline int Adpcm::GetPcm62() {
 	int logThis = (g_AdpcmGetPcm62CallCount < 20);
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
+		DebugLog(2, "[Adpcm::GetPcm62] called, AdpcmReg=0x%02X (call_count=%d)\n", AdpcmReg, g_AdpcmGetPcm62CallCount);
 		g_AdpcmGetPcm62CallCount++;
 	}
 
 	if (AdpcmReg & 0x80) {		// ADPCM stop
 		if (logThis) {
-			DebugLog("[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
+			DebugLog(2, "[Adpcm::GetPcm62] STOPPED, returning 0x80000000\n");
 		}
 		return 0x80000000;
 	}
@@ -467,16 +532,29 @@ inline int Adpcm::GetPcm62() {
 				RateCounter = 0;
 				return 0x80000000;
 			}
-			adpcm2pcm(N10Data & 0x0F);	// Assign value to InpPcm
+			// Switch decoder based on ADPCM mode
+			if (g_Config.adpcm_mode == 1) {
+				adpcm2pcm_msm6258(N10Data & 0x0F);	// MSM6258 high-quality decoder
+			} else {
+				adpcm2pcm(N10Data & 0x0F);	// Legacy decoder
+			}
 			N1Data = (N10Data >> 4) & 0x0F;
 			N1DataFlag = 1;
 		} else {
-			adpcm2pcm(N1Data);			// Assign value to InpPcm
+			// Switch decoder based on ADPCM mode
+			if (g_Config.adpcm_mode == 1) {
+				adpcm2pcm_msm6258(N1Data);	// MSM6258 high-quality decoder
+			} else {
+				adpcm2pcm(N1Data);	// Legacy decoder
+			}
 			N1DataFlag = 0;
 		}
 		RateCounter += 15625*12*4;
 
 	}
+
+	// Save actual decoded value for HPF filter (before interpolation)
+	int InpPcm_for_hpf = InpPcm;
 
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
@@ -487,14 +565,15 @@ inline int Adpcm::GetPcm62() {
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
-	OutInpPcm = (InpPcm<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
-	InpPcm_prev = InpPcm;
+	// Apply HPF filter (using actual decoded value, not interpolated value)
+	OutInpPcm = (InpPcm_for_hpf<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
+	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
 
 	int result = ((OutPcm>>9)*TotalVolume)>>8;
 	if (logThis) {
-		DebugLog("[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
+		DebugLog(3, "[Adpcm::GetPcm62] PLAYING, OutPcm=%d, TotalVolume=%d, result=%d\n", OutPcm, TotalVolume, result);
 	}
 	return result;
 }
