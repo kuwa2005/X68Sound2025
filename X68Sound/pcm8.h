@@ -336,6 +336,15 @@ inline int Pcm8::GetPcm() {
 	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
+	// Saturate OutPcm to prevent overflow when multiplying with volume
+	// Limit to ±80000 which gives ±100000 after volume multiplication (safe margin before final clipping)
+	const int OUT_PCM_LIMIT = 80000;
+	if (OutPcm > OUT_PCM_LIMIT) {
+		OutPcm = OUT_PCM_LIMIT;
+	} else if (OutPcm < -OUT_PCM_LIMIT) {
+		OutPcm = -OUT_PCM_LIMIT;
+	}
+
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
 	int effectiveVolume = Volume;
 	if (g_Config.volume_smoothing) {
@@ -423,8 +432,25 @@ inline int Pcm8::GetPcm62() {
 
 	OutInpPcm = (InpPcm<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm;
+
+	// Saturate OutInpPcm to prevent overflow in second filter stage
+	const int OUT_INP_PCM_LIMIT = 30000000;  // ~58000 after >>9 shift
+	if (OutInpPcm > OUT_INP_PCM_LIMIT) {
+		OutInpPcm = OUT_INP_PCM_LIMIT;
+	} else if (OutInpPcm < -OUT_INP_PCM_LIMIT) {
+		OutInpPcm = -OUT_INP_PCM_LIMIT;
+	}
+
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
+
+	// Saturate OutPcm to prevent overflow when multiplying with volume
+	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift, gives safe margin before clipping
+	if (OutPcm > OUT_PCM_LIMIT_62) {
+		OutPcm = OUT_PCM_LIMIT_62;
+	} else if (OutPcm < -OUT_PCM_LIMIT_62) {
+		OutPcm = -OUT_PCM_LIMIT_62;
+	}
 
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
 	int effectiveVolume = Volume;
