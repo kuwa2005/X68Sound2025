@@ -27,6 +27,7 @@ struct X68SoundConfig {
 	int volume_smoothing;         // Enable PCM8 volume smoothing (0/1, default: 1)
 	int opm_sine_interpolation;   // Enable OPM sine table linear interpolation (0/1, default: 1)
 	int output_sample_rate;       // Output sampling rate (0=auto, 22050/44100/48000/96000/192000)
+	int adpcm_mode;               // ADPCM decoder mode (0=legacy, 1=MSM6258 high-quality)
 };
 
 // Global configuration instance
@@ -40,7 +41,8 @@ X68SoundConfig g_Config = {
 	1,      // linear_interpolation (default: ON)
 	1,      // volume_smoothing (default: ON)
 	1,      // opm_sine_interpolation (default: ON)
-	0       // output_sample_rate (0=auto-detect)
+	0,      // output_sample_rate (0=auto-detect)
+	0       // adpcm_mode (0=legacy, 1=MSM6258 high-quality)
 };
 
 // Helper function to read environment variable as integer
@@ -75,6 +77,7 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.volume_smoothing = GetEnvInt("X68SOUND_VOLUME_SMOOTHING", 1);
 	g_Config.opm_sine_interpolation = GetEnvInt("X68SOUND_OPM_SINE_INTERP", 1);
 	g_Config.output_sample_rate = GetEnvInt("X68SOUND_OUTPUT_RATE", 0);
+	g_Config.adpcm_mode = GetEnvInt("X68SOUND_ADPCM_MODE", 0);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -101,6 +104,11 @@ inline void LoadConfigFromEnvironment() {
 		g_Config.output_sample_rate = 0;  // Fall back to auto-detect for invalid values
 	}
 
+	// Validate ADPCM mode (0=legacy, 1=MSM6258 high-quality)
+	if (g_Config.adpcm_mode != 0 && g_Config.adpcm_mode != 1) {
+		g_Config.adpcm_mode = 0;  // Fall back to legacy mode
+	}
+
 	// Debug logging
 	if (g_Config.enable_debug_log) {
 		char logMsg[768];
@@ -114,7 +122,8 @@ inline void LoadConfigFromEnvironment() {
 			"  LINEAR_INTERPOLATION=%d\n"
 			"  VOLUME_SMOOTHING=%d\n"
 			"  OPM_SINE_INTERPOLATION=%d\n"
-			"  OUTPUT_SAMPLE_RATE=%d (0=auto)\n",
+			"  OUTPUT_SAMPLE_RATE=%d (0=auto)\n"
+			"  ADPCM_MODE=%d (0=legacy, 1=MSM6258)\n",
 			g_Config.pcm_buffer_size,
 			g_Config.betw_time,
 			g_Config.late_time,
@@ -123,7 +132,8 @@ inline void LoadConfigFromEnvironment() {
 			g_Config.linear_interpolation,
 			g_Config.volume_smoothing,
 			g_Config.opm_sine_interpolation,
-			g_Config.output_sample_rate);
+			g_Config.output_sample_rate,
+			g_Config.adpcm_mode);
 		OutputDebugStringA(logMsg);
 	}
 }
@@ -351,6 +361,7 @@ unsigned short	NOISEALPHATBL[ALPHAZERO+SIZEALPHATBL+1];
 
 
 
+// Legacy ADPCM step size table (original X68000)
 const int dltLTBL[48+1]= {
 	16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,
 	73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,
@@ -367,6 +378,27 @@ const int dltLTBL[48+7+1]= {
 const int DCT[16]= {
 	-1,-1,-1,-1,2,4,6,8,
 	-1,-1,-1,-1,2,4,6,8,
+};
+
+// MSM6258 / IMA ADPCM high-quality step size table (89 steps for higher precision)
+const int dltLTBL_MSM6258[89]= {
+	7, 8, 9, 10, 11, 12, 13, 14,
+	16, 17, 19, 21, 23, 25, 28, 31,
+	34, 37, 41, 45, 50, 55, 60, 66,
+	73, 80, 88, 97, 107, 118, 130, 143,
+	157, 173, 190, 209, 230, 253, 279, 307,
+	337, 371, 408, 449, 494, 544, 598, 658,
+	724, 796, 876, 963, 1060, 1166, 1282, 1411,
+	1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024,
+	3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484,
+	7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+	15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+};
+
+// MSM6258 index adjustment table (same as IMA ADPCM)
+const int DCT_MSM6258[16]= {
+	-1, -1, -1, -1, 2, 4, 6, 8,
+	-1, -1, -1, -1, 2, 4, 6, 8,
 };
 
 

@@ -183,6 +183,35 @@ set X68SOUND_PCM_BUFFER=10
 set X68SOUND_LATE_TIME=300
 ```
 
+### X68SOUND_ADPCM_MODE
+ADPCMデコーダーの動作モードを設定します。
+
+- **デフォルト値**: `0` （レガシーモード）
+- **有効値**: `0` (レガシー) / `1` (MSM6258高音質モード)
+- **説明**: ADPCM音声のデコード方式を切り替えます。
+  - **モード 0（レガシー）**: X68000実機の動作を再現した従来のADPCMデコーダー
+    - 12ビット精度（±2047）
+    - 49ステップ量子化テーブル
+    - 実機互換性重視
+  - **モード 1（MSM6258）**: OKI MSM6258チップ互換の高音質デコーダー
+    - 16ビット精度（±32767）
+    - 89ステップ量子化テーブル（IMA ADPCM互換）
+    - 高周波成分の再現性向上
+    - ダイナミックレンジの拡大
+- **効果**:
+  - **モード 1** では、より滑らかで歪みの少ないADPCM再生が可能
+  - 量子化ノイズが軽減され、音質が向上
+  - CPU負荷は約1～2%増加
+- **推奨設定**:
+  - 実機互換性重視: `0`
+  - 音質重視: `1` （推奨）
+
+**設定例**:
+```batch
+REM MSM6258高音質モードを有効化
+set X68SOUND_ADPCM_MODE=1
+```
+
 ---
 
 ## 使用例
@@ -225,6 +254,7 @@ REM すべての音質向上機能を有効化（デフォルト）
 set X68SOUND_LINEAR_INTERPOLATION=1
 set X68SOUND_VOLUME_SMOOTHING=1
 set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
 set X68SOUND_PCM_BUFFER=5
 set X68SOUND_LATE_TIME=200
 
@@ -248,6 +278,7 @@ set X68SOUND_OUTPUT_RATE=96000
 set X68SOUND_LINEAR_INTERPOLATION=1
 set X68SOUND_VOLUME_SMOOTHING=1
 set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
 set X68SOUND_PCM_BUFFER=7
 set X68SOUND_LATE_TIME=200
 
@@ -261,6 +292,7 @@ set X68SOUND_OUTPUT_RATE=192000
 set X68SOUND_LINEAR_INTERPOLATION=1
 set X68SOUND_VOLUME_SMOOTHING=1
 set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
 set X68SOUND_PCM_BUFFER=10
 set X68SOUND_LATE_TIME=300
 set X68SOUND_BUF_MULTIPLIER=2
@@ -283,6 +315,7 @@ REM 【音質向上機能】すべて有効化（デフォルトで有効だが�
 set X68SOUND_LINEAR_INTERPOLATION=1    :: PCM8/ADPCM線形補間
 set X68SOUND_VOLUME_SMOOTHING=1        :: PCM8ボリュームスムージング
 set X68SOUND_OPM_SINE_INTERP=1         :: OPM正弦波線形補間
+set X68SOUND_ADPCM_MODE=1              :: MSM6258高音質ADPCMデコーダー
 
 REM 【バッファ設定】安定性重視
 set X68SOUND_PCM_BUFFER=7              :: 96kHz用バッファサイズ
@@ -345,13 +378,13 @@ REM - CPU負荷: 約15～20%増加
 
 最適な設定を選択する際の参考にしてください：
 
-| 設定モード | OUTPUT_RATE | LINEAR_INTERP | VOLUME_SMOOTH | OPM_SINE_INTERP | PCM_BUFFER | LATE_TIME | CPU負荷 | 用途 |
-|-----------|------------|---------------|---------------|-----------------|------------|-----------|--------|------|
-| **標準** | 0 (自動) | 1 | 1 | 1 | 5 | 200 | 100% | 一般的な使用（デフォルト） |
-| **実機互換** | 0 | 0 | 0 | 0 | 5 | 200 | 95% | 完全な実機互換性重視 |
-| **高品質** | 96000 | 1 | 1 | 1 | 7 | 200 | 約200% | **推奨設定**（現代のPC向け） |
-| **最高品質** | 192000 | 1 | 1 | 1 | 10 | 300 | 約400% | ハイスペックPC向け |
-| **低スペック** | 0 | 1 | 1 | 1 | 12 | 400 | 100% | 古いPC、安定性重視 |
+| 設定モード | OUTPUT_RATE | LINEAR_INTERP | VOLUME_SMOOTH | OPM_SINE_INTERP | ADPCM_MODE | PCM_BUFFER | LATE_TIME | CPU負荷 | 用途 |
+|-----------|------------|---------------|---------------|-----------------|------------|------------|-----------|--------|------|
+| **標準** | 0 (自動) | 1 | 1 | 1 | 1 | 5 | 200 | 100% | 一般的な使用（デフォルト） |
+| **実機互換** | 0 | 0 | 0 | 0 | 0 | 5 | 200 | 95% | 完全な実機互換性重視 |
+| **高品質** | 96000 | 1 | 1 | 1 | 1 | 7 | 200 | 約200% | **推奨設定**（現代のPC向け） |
+| **最高品質** | 192000 | 1 | 1 | 1 | 1 | 10 | 300 | 約400% | ハイスペックPC向け |
+| **低スペック** | 0 | 1 | 1 | 1 | 1 | 12 | 400 | 100% | 古いPC、安定性重視 |
 
 **推奨設定:** 高品質モード（96kHz + すべての音質機能ON）
 
@@ -405,9 +438,10 @@ REM - CPU負荷: 約15～20%増加
 | `X68SOUND_VOLUME_SMOOTHING` | 1 | 0/1 | PCM8ボリュームスムージング |
 | `X68SOUND_OPM_SINE_INTERP` | 1 | 0/1 | OPM正弦波線形補間 |
 | `X68SOUND_OUTPUT_RATE` | 0 | 0/22050/44100/48000/96000/192000 | 出力サンプリングレート |
+| `X68SOUND_ADPCM_MODE` | 0 | 0/1 | ADPCMデコーダーモード |
 
 ---
 
 **作成日**: 2025-01-17
-**最終更新日**: 2025-11-17
-**バージョン**: 2.1
+**最終更新日**: 2025-11-18
+**バージョン**: 2.2
