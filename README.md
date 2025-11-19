@@ -1,11 +1,18 @@
 
 # X68Sound2025
 
-Sharp X68000のサウンドハードウェア（OPM/ADPCM/PCM8）をエミュレートするWindows用DLLライブラリです。
+X68Sound.dllは、Sharp X68000のサウンドハードウェア（OPM/ADPCM/PCM8）をエミュレートするWindows用DLLライブラリです。
+互換性より音質重視で魔改造をしてみました。
+例）ハイジェネレーター、ハイレゾ対応(192kHz、96kHz)や、ADPCMの高音質デコーダー、OPM正弦波線形補間　など
+互換性を保つため mdxプレイヤーの起動の前、環境変数で設定を行いますので、普段遣いの mxv.exe、mxwav.exeが使えます。
+
+[リリース一覧](https://github.com/kuwa2005/X68Sound2025/releases/tag/DLL)
 
 ## 🎵 最高音質で使う（推奨設定）
 
 X68Sound2025を最高音質で使うには、アプリケーション起動前に以下の環境変数を設定してください：
+
+参考：[改造主が使っているMXV起動用 バッチファル](https://github.com/kuwa2005/X68Sound2025/blob/master/HighResoMxv.bat)
 
 ### 🔊 スピーカー向け設定
 
@@ -552,3 +559,4 @@ set X68SOUND_BUF_MULTIPLIER=2
 - 音質向上機能（PCM8/ADPCM線形補間、OPM線形補間、ボリュームスムージング）
 - ハイレゾ音源対応（96kHz/192kHz出力サンプリングレート）
 - コード品質改善（飽和演算、定数化、コメント整理） 
+
