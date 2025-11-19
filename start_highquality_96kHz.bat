@@ -28,6 +28,7 @@ REM 【音質向上機能】すべて有効化
 set X68SOUND_LINEAR_INTERPOLATION=1
 set X68SOUND_VOLUME_SMOOTHING=1
 set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_ADPCM_MODE=1
 
 REM 【バッファ設定】安定性重視
 set X68SOUND_PCM_BUFFER=7
@@ -43,6 +44,7 @@ echo   出力サンプリングレート: 96kHz
 echo   PCM8/ADPCM線形補間: ON
 echo   ボリュームスムージング: ON
 echo   OPM正弦波線形補間: ON
+echo   ADPCM高音質モード: ON (MSM6258)
 echo   PCMバッファサイズ: 7
 echo   レイテンシ: 200ms
 echo.
@@ -50,6 +52,7 @@ echo 【期待される効果】
 echo   - エイリアシングノイズ: 50～70%軽減
 echo   - クリックノイズ: 完全除去
 echo   - FM音源の音質: 大幅向上
+echo   - ADPCM音質: 16bit高精度デコード
 echo   - サンプリングレート: 2倍（44.1kHz→96kHz）
 echo   - CPU負荷: 約15～20%増加
 echo.

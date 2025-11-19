@@ -80,6 +80,13 @@ inline void Pcm8::Init() {
 	DmaBar = NULL;
 	DmaBtc = 0;
 	DmaOcr = 0;
+
+	static int pcm8InitCount = 0;
+	if (pcm8InitCount < 8) {
+		DebugLog(1, "[Pcm8::Init] AdpcmReg=0x%02X, Volume=%d, CurrentVolume=%d (init_count=%d)\n",
+			AdpcmReg, Volume, CurrentVolume, pcm8InitCount);
+		pcm8InitCount++;
+	}
 }
 inline void Pcm8::InitSamprate() {
 	RateCounter = 0;
@@ -91,6 +98,7 @@ inline void Pcm8::Reset() {
 	InpPcm = InpPcm_prev = OutPcm = 0;
 	OutInpPcm = OutInpPcm_prev = 0;
 	PrevInpPcm = 0;		// For linear interpolation
+	CurrentVolume = Volume;	// Reset CurrentVolume to match Volume to prevent discontinuity
 
 	N1Data = 0;
 	N1DataFlag = 0;
@@ -313,17 +321,30 @@ inline int Pcm8::GetPcm() {
 		RateCounter += 15625*12;
 	}
 
+	// Save actual decoded value for HPF filter (before interpolation)
+	int InpPcm_for_hpf = InpPcm;
+
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
+		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12;
-		int frac = (RateCounter << 16) / sampleInterval;
+		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
-	// Apply HPF filter (magic numbers replaced with constants)
-	OutPcm = ((InpPcm << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
-	InpPcm_prev = InpPcm;
+	// Apply HPF filter (using actual decoded value, not interpolated value)
+	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
+	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
+
+	// Saturate OutPcm to prevent overflow when multiplying with volume
+	// Limit to ±80000 which gives ±100000 after volume multiplication (safe margin before final clipping)
+	const int OUT_PCM_LIMIT = 80000;
+	if (OutPcm > OUT_PCM_LIMIT) {
+		OutPcm = OUT_PCM_LIMIT;
+	} else if (OutPcm < -OUT_PCM_LIMIT) {
+		OutPcm = -OUT_PCM_LIMIT;
+	}
 
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
 	int effectiveVolume = Volume;
@@ -341,7 +362,46 @@ inline int Pcm8::GetPcm() {
 		effectiveVolume = CurrentVolume;
 	}
 
-	return (((OutPcm*effectiveVolume)>>4)*TotalVolume)>>8;
+	int result = (((OutPcm*effectiveVolume)>>4)*TotalVolume)>>8;
+
+	// Anomaly detection logging (Level 2+)
+	if (g_Config.debug_log_level >= 2) {
+		static int anomaly_count = 0;
+		int is_anomaly = 0;
+		char anomaly_reason[256] = "";
+
+		// Check for abnormal InpPcm values
+		if (abs(InpPcm_for_hpf) > (32767 << 4)) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit; ", InpPcm_for_hpf);
+		}
+
+		// Check for HPF filter saturation (OutPcm hit limit)
+		if (abs(OutPcm) >= OUT_PCM_LIMIT) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
+		}
+
+		// Check for near-clipping output
+		if (abs(result) > 30000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
+		}
+
+		// Log first 50 anomalies
+		if (is_anomaly && anomaly_count < 50) {
+			DebugLog(2, "[PCM8 ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
+			DebugLog(2, "  Details: InpPcm_for_hpf=%d, InpPcm_prev=%d, OutPcm=%d, Volume=%d, effectiveVolume=%d, TotalVolume=%d, result=%d\n",
+				InpPcm_for_hpf, InpPcm_prev, OutPcm, Volume, effectiveVolume, TotalVolume, result);
+			anomaly_count++;
+
+			if (anomaly_count == 50) {
+				DebugLog(2, "[PCM8 ANOMALY] Maximum anomaly log count reached\n");
+			}
+		}
+	}
+
+	return result;
 }
 
 // -32768<<4 <= retval <= +32768<<4
@@ -404,15 +464,33 @@ inline int Pcm8::GetPcm62() {
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
+		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12*4;
-		int frac = (RateCounter << 16) / sampleInterval;
+		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
 		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
 	OutInpPcm = (InpPcm<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);
 	InpPcm_prev = InpPcm;
+
+	// Saturate OutInpPcm to prevent overflow in second filter stage
+	const int OUT_INP_PCM_LIMIT = 30000000;  // ~58000 after >>9 shift
+	if (OutInpPcm > OUT_INP_PCM_LIMIT) {
+		OutInpPcm = OUT_INP_PCM_LIMIT;
+	} else if (OutInpPcm < -OUT_INP_PCM_LIMIT) {
+		OutInpPcm = -OUT_INP_PCM_LIMIT;
+	}
+
 	OutPcm = OutInpPcm - OutInpPcm_prev + OutPcm-(OutPcm>>8)-(OutPcm>>9)-(OutPcm>>12);
 	OutInpPcm_prev = OutInpPcm;
+
+	// Saturate OutPcm to prevent overflow when multiplying with volume
+	const int OUT_PCM_LIMIT_62 = 50000000;  // ~97000 after >>9 shift, gives safe margin before clipping
+	if (OutPcm > OUT_PCM_LIMIT_62) {
+		OutPcm = OUT_PCM_LIMIT_62;
+	} else if (OutPcm < -OUT_PCM_LIMIT_62) {
+		OutPcm = -OUT_PCM_LIMIT_62;
+	}
 
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
 	int effectiveVolume = Volume;
@@ -430,7 +508,51 @@ inline int Pcm8::GetPcm62() {
 		effectiveVolume = CurrentVolume;
 	}
 
-	return ((OutPcm>>9)*effectiveVolume)>>4;
+	int result = ((((OutPcm>>9)*effectiveVolume)>>4)*TotalVolume)>>8;
+
+	// Anomaly detection logging (Level 2+)
+	if (g_Config.debug_log_level >= 2) {
+		static int anomaly_count = 0;
+		int is_anomaly = 0;
+		char anomaly_reason[256] = "";
+
+		// Check for abnormal InpPcm values
+		if (abs(InpPcm) > (32767 << 8)) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "InpPcm=%d exceeds limit; ", InpPcm);
+		}
+
+		// Check for HPF filter saturation (OutInpPcm or OutPcm hit limit)
+		if (abs(OutInpPcm) >= OUT_INP_PCM_LIMIT) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutInpPcm=%d saturated; ", OutInpPcm);
+		}
+
+		if (abs(OutPcm) >= OUT_PCM_LIMIT_62) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "OutPcm=%d saturated; ", OutPcm);
+		}
+
+		// Check for near-clipping output
+		if (abs(result) > 30000) {
+			is_anomaly = 1;
+			sprintf(anomaly_reason + strlen(anomaly_reason), "result=%d near clipping; ", result);
+		}
+
+		// Log first 50 anomalies
+		if (is_anomaly && anomaly_count < 50) {
+			DebugLog(2, "[PCM8-62 ANOMALY #%d] %s\n", anomaly_count, anomaly_reason);
+			DebugLog(2, "  Details: InpPcm=%d, InpPcm_prev=%d, OutInpPcm=%d, OutPcm=%d, Volume=%d, effectiveVolume=%d, TotalVolume=%d, result=%d\n",
+				InpPcm, InpPcm_prev, OutInpPcm, OutPcm, Volume, effectiveVolume, TotalVolume, result);
+			anomaly_count++;
+
+			if (anomaly_count == 50) {
+				DebugLog(2, "[PCM8-62 ANOMALY] Maximum anomaly log count reached\n");
+			}
+		}
+	}
+
+	return result;
 }
 
 
@@ -445,8 +567,28 @@ inline int	Pcm8::Out(void *adrs, int mode, int len) {
 			return GetRest();
 		} else {
 			DmaMtc = 0;
+			DebugLog(2, "[Pcm8::Out] STOP: len=0, clearing DmaMtc\n");
 			return 0;
 		}
+	}
+	DebugLog(2, "[Pcm8::Out] START: adrs=%p, mode=0x%06X, len=%d\n", adrs, mode, len);
+	DebugLog(2, "  Before Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+		Volume, CurrentVolume, OutPcm, OutInpPcm);
+	// Log first few bytes of sample data to identify which sample is being played
+	if (adrs != NULL) {
+		unsigned char *data = (unsigned char *)adrs;
+		int logBytes = (len < 16) ? len : 16;
+		DebugLog(2, "  Sample data (first %d bytes):", logBytes);
+		for (int i = 0; i < logBytes; i++) {
+			int byte = MemRead(data + i);
+			if (byte != -1) {
+				DebugLog(2, " %02X", byte);
+			} else {
+				DebugLog(2, " ??");
+				break;
+			}
+		}
+		DebugLog(2, "\n");
 	}
 				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
@@ -455,6 +597,8 @@ inline int	Pcm8::Out(void *adrs, int mode, int len) {
 	if ((mode&3) != 0) {
 		DmaMtc = len;
 		Reset();
+		DebugLog(2, "  After Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+			Volume, CurrentVolume, OutPcm, OutInpPcm);
 		AdpcmReg = 0x47;
 		DmaOcr = 0;
 	}
@@ -466,9 +610,13 @@ inline int	Pcm8::Aot(void *tbl, int mode, int cnt) {
 			return GetRest();
 		} else {
 			DmaMtc = 0;
+			DebugLog(2, "[Pcm8::Aot] STOP: cnt=0, clearing DmaMtc\n");
 			return 0;
 		}
 	}
+	DebugLog(2, "[Pcm8::Aot] START: tbl=%p, mode=0x%06X, cnt=%d\n", tbl, mode, cnt);
+	DebugLog(2, "  Before Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+		Volume, CurrentVolume, OutPcm, OutInpPcm);
 				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaBar = (unsigned char *)tbl;
@@ -477,12 +625,17 @@ inline int	Pcm8::Aot(void *tbl, int mode, int cnt) {
 	if ((mode&3) != 0) {
 		DmaArrayChainSetNextMtcMar();
 		Reset();
+		DebugLog(2, "  After Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+			Volume, CurrentVolume, OutPcm, OutInpPcm);
 		AdpcmReg = 0x47;
 		DmaOcr = 0x08;
 	}
 	return 0;
 }
 inline int	Pcm8::Lot(void *tbl, int mode) {
+	DebugLog(2, "[Pcm8::Lot] START: tbl=%p, mode=0x%06X\n", tbl, mode);
+	DebugLog(2, "  Before Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+		Volume, CurrentVolume, OutPcm, OutInpPcm);
 				AdpcmReg = 0xC7;	// ADPCM stop
 	DmaMtc = 0;
 	DmaBar = (unsigned char *)tbl;
@@ -490,6 +643,8 @@ inline int	Pcm8::Lot(void *tbl, int mode) {
 	if ((mode&3) != 0) {
 		DmaLinkArrayChainSetNextMtcMar();
 		Reset();
+		DebugLog(2, "  After Reset: Volume=%d, CurrentVolume=%d, OutPcm=%d, OutInpPcm=%d\n",
+			Volume, CurrentVolume, OutPcm, OutInpPcm);
 		AdpcmReg = 0x47;
 		DmaOcr = 0x0c;
 	}

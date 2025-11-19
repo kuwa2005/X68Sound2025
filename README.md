@@ -7,24 +7,176 @@ Sharp X68000のサウンドハードウェア（OPM/ADPCM/PCM8）をエミュレ
 
 X68Sound2025を最高音質で使うには、アプリケーション起動前に以下の環境変数を設定してください：
 
+### 🔊 スピーカー向け設定
+
 ```batch
+REM 基本音質向上
 set X68SOUND_OUTPUT_RATE=96000           :: 96kHzハイレゾ出力
 set X68SOUND_LINEAR_INTERPOLATION=1     :: PCM8/ADPCM線形補間
 set X68SOUND_VOLUME_SMOOTHING=1         :: ボリュームスムージング
 set X68SOUND_OPM_SINE_INTERP=1          :: OPM正弦波線形補間
+set X68SOUND_ADPCM_MODE=1               :: MSM6258高音質ADPCMデコーダ
+
+REM ステレオ強化・立体音響（NEW!）
+set X68SOUND_STEREO_WIDTH=150           :: ステレオ幅拡張
+set X68SOUND_CENTER_WIDTH=70            :: センターチャンネル幅拡張
+set X68SOUND_EARLY_REFLECTIONS=30       :: 初期反射音（空間の深み）
+
+REM 音色補正
+set X68SOUND_EXCITER=2                  :: ハーモニックエキサイター
+set X68SOUND_SUB_BASS=2                 :: サブハーモニックベース
+set X68SOUND_FM_HARMONIC=2              :: FM倍音エンハンサー
+set X68SOUND_FM_WARMTH=2                :: FM温かみエフェクト
+
+REM リバーブ
+set X68SOUND_REVERB=2                   :: リバーブ（Medium Room）
+set X68SOUND_REVERB_DECAY=70            :: 残響時間
+set X68SOUND_REVERB_MIX=20              :: リバーブミックス
+
+REM バッファ設定
 set X68SOUND_PCM_BUFFER=7               :: バッファサイズ
 set X68SOUND_LATE_TIME=200              :: レイテンシ
 ```
 
-**効果:** エイリアシングノイズ50-70%軽減、クリックノイズ完全除去、FM音源の音質大幅向上
+📦 **プリセット:** [`start_preset_music.bat`](start_preset_music.bat)
+
+### 🎧 ヘッドホン向け設定
+
+```batch
+REM 基本音質向上
+set X68SOUND_OUTPUT_RATE=96000           :: 96kHzハイレゾ出力
+set X68SOUND_LINEAR_INTERPOLATION=1     :: PCM8/ADPCM線形補間
+set X68SOUND_VOLUME_SMOOTHING=1         :: ボリュームスムージング
+set X68SOUND_OPM_SINE_INTERP=1          :: OPM正弦波線形補間
+set X68SOUND_ADPCM_MODE=1               :: MSM6258高音質ADPCMデコーダ
+
+REM ヘッドホン最適化（NEW!）
+set X68SOUND_STEREO_WIDTH=120           :: ステレオ幅（やや広め）
+set X68SOUND_CROSSFEED=30               :: クロスフィード（圧迫感軽減）
+set X68SOUND_CROSSFEED_DELAY=2          :: クロスフィード遅延
+set X68SOUND_HAAS_EFFECT=50             :: ハース効果（立体音響）
+set X68SOUND_HAAS_DELAY=5               :: ハース効果遅延
+
+REM 音色補正
+set X68SOUND_EXCITER=2                  :: ハーモニックエキサイター
+set X68SOUND_SUB_BASS=1                 :: サブハーモニックベース（控えめ）
+set X68SOUND_FM_HARMONIC=2              :: FM倍音エンハンサー
+set X68SOUND_FM_WARMTH=2                :: FM温かみエフェクト
+
+REM リバーブ
+set X68SOUND_REVERB=1                   :: リバーブ（Small Room）
+set X68SOUND_REVERB_MIX=15              :: リバーブミックス（控えめ）
+
+REM バッファ設定
+set X68SOUND_PCM_BUFFER=7               :: バッファサイズ
+set X68SOUND_LATE_TIME=200              :: レイテンシ
+```
+
+📦 **プリセット:** [`start_preset_headphone.bat`](start_preset_headphone.bat)
+
+### 🎮 その他のプリセット
+
+- 🎮 **ゲーム用** [`start_preset_gaming.bat`](start_preset_gaming.bat) - 低遅延、パンチのある音
+- 📻 **ビンテージ風** [`start_preset_vintage.bat`](start_preset_vintage.bat) - アナログシンセのような温かみ
+
+---
+
+### ✨ 新機能の効果
+
+**ステレオ強化・立体音響:**
+- X68000のL/C/Rパンニングを擬似的に広いステレオ音場に変換
+- クロスフィード: ヘッドホンの圧迫感を完全に解消
+- ハース効果: 音に奥行きと広がりを加え、立体的なサウンドステージを実現
+- 初期反射音: 部屋の響きをシミュレート、空間の深みを演出
+
+**音色補正:**
+- エイリアシングノイズ50-70%軽減、クリックノイズ完全除去
+- FM音源の音質大幅向上、ADPCM高音質化
+- 高域・低域の補完により、豊かでバランスの良い音色
 
 **必要スペック:** Core i5以上、8GB RAM、96kHz対応オーディオインターフェース
 
-📦 **プリセットバッチファイル:** [`start_highquality_96kHz.bat`](start_highquality_96kHz.bat) をすぐに使えます
+### 🐛 トラブルシューティング
+
+音が出ない・歪む場合は、デバッグログを有効にして問題を診断できます：
+
+```batch
+set X68SOUND_DEBUG=2   :: デバッグログ有効化（0=オフ、1=基本、2=トレース、3=詳細）
+```
+
+ログファイル `x68sound_debug.log` に詳細な内部動作が記録されます。
 
 ---
 
 ## 最新の変更履歴
+
+### 2025/11/18 - v2.3 擬似ステレオ強化機能 & HPFフィルター改善
+
+#### 新機能
+* **擬似ステレオ・立体音響エフェクト**: X68000のL/C/Rパンニングをより広いステレオ音場に変換
+  - **クロスフィード**: 左右チャンネルを微小遅延で混合、ヘッドホンの圧迫感を軽減
+    - 環境変数 `X68SOUND_CROSSFEED` (0-100): レベル調整
+    - 環境変数 `X68SOUND_CROSSFEED_DELAY` (1-10): 遅延時間（0.1ms単位）
+  - **センターチャンネル幅拡張**: Mid-Sideプロセッシングでセンター定位を左右に広げる
+    - 環境変数 `X68SOUND_CENTER_WIDTH` (0-100): 拡張度合い
+  - **ハース効果**: 先行音効果（Precedence Effect）による立体音響
+    - 環境変数 `X68SOUND_HAAS_EFFECT` (0-100): 効果の強さ
+    - 環境変数 `X68SOUND_HAAS_DELAY` (1-10): 遅延時間（0.1ms単位）
+  - **初期反射音**: 部屋の壁からの反射をマルチタップディレイでシミュレート
+    - 環境変数 `X68SOUND_EARLY_REFLECTIONS` (0-100): 反射音レベル
+    - 複数の遅延タップ（5ms, 7.5ms, 10ms, 13ms）で空間の深みを演出
+  - すべてデフォルトOFF、環境変数で自由に組み合わせ可能
+  - 詳細は [環境変数の一覧.md](環境変数の一覧.md) を参照
+
+* **環境変数クイックリファレンス**: 効果別に整理された環境変数一覧
+  - [環境変数の一覧.md](環境変数の一覧.md): 効果別カテゴリで探しやすい
+  - [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md): 詳細な技術解説
+
+#### 改善
+* **HPFフィルター振動防止の強化**: ごく稀に発生するピー音を完全排除
+  - 連続飽和検出カウンターを追加（2サンプル以上の連続飽和を検出）
+  - 検出閾値を引き下げ（8-11%早期検出）
+  - 2段階リセット戦略（単発=穏やか、連続=強制リセット）
+  - フィルター履歴も同時クリアして振動ループを完全に断ち切る
+  - GetPcm/GetPcm62の全3段（22kHz + 62kHz 2段）で保護
+  - より保守的な閾値で安定性を大幅向上
+
+#### ドキュメント更新
+* プリセット設定に新機能を追加
+  - MUSIC: センターチャンネル幅拡張 + 初期反射音
+  - HEADPHONE: クロスフィード + ハース効果
+  - VINTAGE: 初期反射音強化
+* README推奨設定をスピーカー/ヘッドホン別に分割
+
+### 2025/11/18 - v2.2 MSM6258高音質ADPCM対応 & 重大バグ修正
+
+#### 新機能
+* **MSM6258高音質ADPCMデコーダ**: OKI Electric MSM6258互換の89ステップIMA ADPCMデコーダを実装
+  - より高精度な16bitデコード（従来は12bit相当）
+  - 環境変数 `X68SOUND_ADPCM_MODE=1` で有効化（デフォルト: 0=過去互換モード）
+  - ダイナミックレンジ・S/N比が大幅に向上
+  - 過去互換性維持のため環境変数で切り替え可能
+
+* **デバッグログレベルシステム**: トラブルシューティング用の4段階ログ出力
+  - 環境変数 `X68SOUND_DEBUG` で制御（0=オフ、1=基本、2=トレース、3=詳細）
+  - ADPCM/PCM8のデコード処理、DMA転送、HPFフィルタなどの内部状態を可視化
+  - ログファイル: `x68sound_debug.log`
+
+#### バグ修正
+* **🔧 HPFフィルタ暴走バグ修正 [重大]**: 線形補間とHPFフィルタの干渉によるPCM/ADPCM音声の歪みを修正
+  - **症状**: PCM8/ADPCM音源で極端にコンプレッサーをかけたような不快な音が発生（FM音源は正常）
+  - **原因**: 線形補間で修正された値がHPFフィルタの状態変数に保存され、誤差が蓄積してOutPcmが発散
+  - **影響範囲**: すべてのPCMモード（過去互換ADPCM、MSM6258高音質ADPCM、PCM8）
+  - **修正内容**: HPFフィルタには補間前の実際のデコード値を使用し、補間値は出力のみに適用
+  - **修正ファイル**: `X68Sound/adpcm.h` (GetPcm/GetPcm62), `X68Sound/pcm8.h` (GetPcm)
+  - **重要度**: ⚠️ 線形補間機能（`X68SOUND_LINEAR_INTERPOLATION=1`）を使用しているすべてのユーザーに影響
+
+* **🔧 線形補間バグ修正 [重大]**: ADPCM再生時に無音になるバグを修正
+  - **症状**: 線形補間有効時にADPCM音源が完全に無音（PCM8は正常）
+  - **原因**: 線形補間の計算式が誤っており、常に0を返していた
+  - **修正内容**: 正しい線形補間式 `prev + ((curr - prev) * frac) >> 16` に修正
+  - **修正ファイル**: `X68Sound/adpcm.h` (GetPcm/GetPcm62)
+  - **重要度**: ⚠️ ADPCM音源が使えない致命的バグ
 
 ### 2025/11/17 - v2.1 ハイレゾ対応アップデート
 

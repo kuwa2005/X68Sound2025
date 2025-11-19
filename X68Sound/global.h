@@ -1,3 +1,6 @@
+#ifndef GLOBAL_H
+#define GLOBAL_H
+
 #include	<stdio.h>
 #include	<stdlib.h>
 #include	<math.h>
@@ -21,12 +24,31 @@ struct X68SoundConfig {
 	int betw_time;            // Between time in ms (default: 5)
 	int late_time;            // Latency time in ms (default: 200)
 	double rev_margin;        // Sample rate revision margin (default: 1.0)
-	int enable_debug_log;     // Enable debug logging (0/1)
 	int pcm_buf_multiplier;   // Buffer size multiplier (default: 1)
 	int linear_interpolation;     // Enable PCM8/ADPCM linear interpolation (0/1, default: 1)
 	int volume_smoothing;         // Enable PCM8 volume smoothing (0/1, default: 1)
 	int opm_sine_interpolation;   // Enable OPM sine table linear interpolation (0/1, default: 1)
 	int output_sample_rate;       // Output sampling rate (0=auto, 22050/44100/48000/96000/192000)
+	int adpcm_mode;               // ADPCM decoder mode (0=legacy, 1=MSM6258 high-quality)
+	int debug_log_level;          // Debug log level (0=off, 1=basic, 2=trace, 3=detailed)
+
+	// Audio Effects Configuration
+	int exciter_level;            // Harmonic exciter level (0=OFF, 1-4=intensity, default: 0)
+	int sub_bass_level;           // Sub-harmonic bass level (0=OFF, 1-4=intensity, default: 0)
+	int fm_harmonic_level;        // FM harmonic enhancer (0=OFF, 1-4=intensity, default: 0)
+	int fm_warmth_level;          // FM warmth/analog feel (0=OFF, 1-4=intensity, default: 0)
+	int fm_chorus_depth;          // FM chorus effect (0=OFF, 1=Subtle, 2=Rich, 3=Wide, default: 0)
+	int stereo_width;             // Stereo width percentage (100=normal, 150=wide, 200=ultra, default: 100)
+	int crossfeed_level;          // Crossfeed for headphones (0-100%, 0=OFF, 30=natural, 50=strong, default: 0)
+	int crossfeed_delay;          // Crossfeed delay in 0.1ms units (1-10, default: 2 = 0.2ms)
+	int center_channel_width;     // Center channel widening (0-100%, 0=OFF/normal, 70=natural, default: 0)
+	int haas_effect_level;        // Haas precedence effect (0-100%, 0=OFF, 50=subtle, default: 0)
+	int haas_delay;               // Haas delay in 0.1ms units (1-10, default: 5 = 0.5ms)
+	int early_reflections;        // Early reflections intensity (0-100%, 0=OFF, 30=subtle, default: 0)
+	int reverb_type;              // Reverb type (0=OFF, 1=Small, 2=Medium, 3=Large, 4=Hall, default: 0)
+	int reverb_decay;             // Reverb decay time (10-95%, default: 70)
+	int reverb_mix;               // Reverb wet/dry mix (0-50%, default: 20)
+	int compressor_level;         // Multiband compressor (0=OFF, 1=Gentle, 2=Medium, 3=Strong, default: 0)
 };
 
 // Global configuration instance
@@ -35,12 +57,31 @@ X68SoundConfig g_Config = {
 	5,      // betw_time
 	200,    // late_time
 	1.0,    // rev_margin
-	0,      // enable_debug_log
 	1,      // pcm_buf_multiplier
 	1,      // linear_interpolation (default: ON)
 	1,      // volume_smoothing (default: ON)
 	1,      // opm_sine_interpolation (default: ON)
-	0       // output_sample_rate (0=auto-detect)
+	0,      // output_sample_rate (0=auto-detect)
+	0,      // adpcm_mode (0=legacy, 1=MSM6258 high-quality)
+	0,      // debug_log_level (0=off, 1=basic, 2=trace, 3=detailed)
+
+	// Audio Effects (all OFF by default for compatibility)
+	0,      // exciter_level
+	0,      // sub_bass_level
+	0,      // fm_harmonic_level
+	0,      // fm_warmth_level
+	0,      // fm_chorus_depth
+	100,    // stereo_width
+	0,      // crossfeed_level
+	2,      // crossfeed_delay (0.2ms)
+	0,      // center_channel_width
+	0,      // haas_effect_level
+	5,      // haas_delay (0.5ms)
+	0,      // early_reflections
+	0,      // reverb_type
+	70,     // reverb_decay
+	20,     // reverb_mix
+	0       // compressor_level
 };
 
 // Helper function to read environment variable as integer
@@ -69,12 +110,31 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.betw_time = GetEnvInt("X68SOUND_BETW_TIME", 5);
 	g_Config.late_time = GetEnvInt("X68SOUND_LATE_TIME", 200);
 	g_Config.rev_margin = GetEnvDouble("X68SOUND_REV_MARGIN", 1.0);
-	g_Config.enable_debug_log = GetEnvInt("X68SOUND_DEBUG", 0);
 	g_Config.pcm_buf_multiplier = GetEnvInt("X68SOUND_BUF_MULTIPLIER", 1);
 	g_Config.linear_interpolation = GetEnvInt("X68SOUND_LINEAR_INTERPOLATION", 1);
 	g_Config.volume_smoothing = GetEnvInt("X68SOUND_VOLUME_SMOOTHING", 1);
 	g_Config.opm_sine_interpolation = GetEnvInt("X68SOUND_OPM_SINE_INTERP", 1);
 	g_Config.output_sample_rate = GetEnvInt("X68SOUND_OUTPUT_RATE", 0);
+	g_Config.adpcm_mode = GetEnvInt("X68SOUND_ADPCM_MODE", 0);
+	g_Config.debug_log_level = GetEnvInt("X68SOUND_DEBUG", 0);
+
+	// Audio Effects Configuration
+	g_Config.exciter_level = GetEnvInt("X68SOUND_EXCITER", 0);
+	g_Config.sub_bass_level = GetEnvInt("X68SOUND_SUB_BASS", 0);
+	g_Config.fm_harmonic_level = GetEnvInt("X68SOUND_FM_HARMONIC", 0);
+	g_Config.fm_warmth_level = GetEnvInt("X68SOUND_FM_WARMTH", 0);
+	g_Config.fm_chorus_depth = GetEnvInt("X68SOUND_FM_CHORUS", 0);
+	g_Config.stereo_width = GetEnvInt("X68SOUND_STEREO_WIDTH", 100);
+	g_Config.crossfeed_level = GetEnvInt("X68SOUND_CROSSFEED", 0);
+	g_Config.crossfeed_delay = GetEnvInt("X68SOUND_CROSSFEED_DELAY", 2);
+	g_Config.center_channel_width = GetEnvInt("X68SOUND_CENTER_WIDTH", 0);
+	g_Config.haas_effect_level = GetEnvInt("X68SOUND_HAAS_EFFECT", 0);
+	g_Config.haas_delay = GetEnvInt("X68SOUND_HAAS_DELAY", 5);
+	g_Config.early_reflections = GetEnvInt("X68SOUND_EARLY_REFLECTIONS", 0);
+	g_Config.reverb_type = GetEnvInt("X68SOUND_REVERB", 0);
+	g_Config.reverb_decay = GetEnvInt("X68SOUND_REVERB_DECAY", 70);
+	g_Config.reverb_mix = GetEnvInt("X68SOUND_REVERB_MIX", 20);
+	g_Config.compressor_level = GetEnvInt("X68SOUND_COMPRESSOR", 0);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -101,8 +161,51 @@ inline void LoadConfigFromEnvironment() {
 		g_Config.output_sample_rate = 0;  // Fall back to auto-detect for invalid values
 	}
 
-	// Debug logging
-	if (g_Config.enable_debug_log) {
+	// Validate ADPCM mode (0=legacy, 1=MSM6258 high-quality)
+	if (g_Config.adpcm_mode != 0 && g_Config.adpcm_mode != 1) {
+		g_Config.adpcm_mode = 0;  // Fall back to legacy mode
+	}
+
+	// Validate debug log level (0=off, 1=basic, 2=trace, 3=detailed)
+	if (g_Config.debug_log_level < 0) g_Config.debug_log_level = 0;
+	if (g_Config.debug_log_level > 3) g_Config.debug_log_level = 3;
+
+	// Validate audio effects parameters
+	if (g_Config.exciter_level < 0) g_Config.exciter_level = 0;
+	if (g_Config.exciter_level > 4) g_Config.exciter_level = 4;
+	if (g_Config.sub_bass_level < 0) g_Config.sub_bass_level = 0;
+	if (g_Config.sub_bass_level > 4) g_Config.sub_bass_level = 4;
+	if (g_Config.fm_harmonic_level < 0) g_Config.fm_harmonic_level = 0;
+	if (g_Config.fm_harmonic_level > 4) g_Config.fm_harmonic_level = 4;
+	if (g_Config.fm_warmth_level < 0) g_Config.fm_warmth_level = 0;
+	if (g_Config.fm_warmth_level > 4) g_Config.fm_warmth_level = 4;
+	if (g_Config.fm_chorus_depth < 0) g_Config.fm_chorus_depth = 0;
+	if (g_Config.fm_chorus_depth > 3) g_Config.fm_chorus_depth = 3;
+	if (g_Config.stereo_width < 50) g_Config.stereo_width = 50;
+	if (g_Config.stereo_width > 200) g_Config.stereo_width = 200;
+	if (g_Config.crossfeed_level < 0) g_Config.crossfeed_level = 0;
+	if (g_Config.crossfeed_level > 100) g_Config.crossfeed_level = 100;
+	if (g_Config.crossfeed_delay < 1) g_Config.crossfeed_delay = 1;
+	if (g_Config.crossfeed_delay > 10) g_Config.crossfeed_delay = 10;
+	if (g_Config.center_channel_width < 0) g_Config.center_channel_width = 0;
+	if (g_Config.center_channel_width > 100) g_Config.center_channel_width = 100;
+	if (g_Config.haas_effect_level < 0) g_Config.haas_effect_level = 0;
+	if (g_Config.haas_effect_level > 100) g_Config.haas_effect_level = 100;
+	if (g_Config.haas_delay < 1) g_Config.haas_delay = 1;
+	if (g_Config.haas_delay > 10) g_Config.haas_delay = 10;
+	if (g_Config.early_reflections < 0) g_Config.early_reflections = 0;
+	if (g_Config.early_reflections > 100) g_Config.early_reflections = 100;
+	if (g_Config.reverb_type < 0) g_Config.reverb_type = 0;
+	if (g_Config.reverb_type > 4) g_Config.reverb_type = 4;
+	if (g_Config.reverb_decay < 10) g_Config.reverb_decay = 10;
+	if (g_Config.reverb_decay > 95) g_Config.reverb_decay = 95;
+	if (g_Config.reverb_mix < 0) g_Config.reverb_mix = 0;
+	if (g_Config.reverb_mix > 50) g_Config.reverb_mix = 50;
+	if (g_Config.compressor_level < 0) g_Config.compressor_level = 0;
+	if (g_Config.compressor_level > 3) g_Config.compressor_level = 3;
+
+	// Debug logging (Level 1: Basic information)
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[768];
 		sprintf(logMsg,
 			"[X68Sound] Config loaded:\n"
@@ -114,7 +217,9 @@ inline void LoadConfigFromEnvironment() {
 			"  LINEAR_INTERPOLATION=%d\n"
 			"  VOLUME_SMOOTHING=%d\n"
 			"  OPM_SINE_INTERPOLATION=%d\n"
-			"  OUTPUT_SAMPLE_RATE=%d (0=auto)\n",
+			"  OUTPUT_SAMPLE_RATE=%d (0=auto)\n"
+			"  ADPCM_MODE=%d (0=legacy, 1=MSM6258)\n"
+			"  DEBUG_LEVEL=%d (0=off, 1=basic, 2=trace, 3=detailed)\n",
 			g_Config.pcm_buffer_size,
 			g_Config.betw_time,
 			g_Config.late_time,
@@ -123,7 +228,9 @@ inline void LoadConfigFromEnvironment() {
 			g_Config.linear_interpolation,
 			g_Config.volume_smoothing,
 			g_Config.opm_sine_interpolation,
-			g_Config.output_sample_rate);
+			g_Config.output_sample_rate,
+			g_Config.adpcm_mode,
+			g_Config.debug_log_level);
 		OutputDebugStringA(logMsg);
 	}
 }
@@ -351,6 +458,7 @@ unsigned short	NOISEALPHATBL[ALPHAZERO+SIZEALPHATBL+1];
 
 
 
+// Legacy ADPCM step size table (original X68000)
 const int dltLTBL[48+1]= {
 	16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,
 	73,80,88,97,107,118,130,143,157,173,190,209,230,253,279,307,
@@ -367,6 +475,27 @@ const int dltLTBL[48+7+1]= {
 const int DCT[16]= {
 	-1,-1,-1,-1,2,4,6,8,
 	-1,-1,-1,-1,2,4,6,8,
+};
+
+// MSM6258 / IMA ADPCM high-quality step size table (89 steps for higher precision)
+const int dltLTBL_MSM6258[89]= {
+	7, 8, 9, 10, 11, 12, 13, 14,
+	16, 17, 19, 21, 23, 25, 28, 31,
+	34, 37, 41, 45, 50, 55, 60, 66,
+	73, 80, 88, 97, 107, 118, 130, 143,
+	157, 173, 190, 209, 230, 253, 279, 307,
+	337, 371, 408, 449, 494, 544, 598, 658,
+	724, 796, 876, 963, 1060, 1166, 1282, 1411,
+	1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024,
+	3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484,
+	7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+	15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+};
+
+// MSM6258 index adjustment table (same as IMA ADPCM)
+const int DCT_MSM6258[16]= {
+	-1, -1, -1, -1, 2, 4, 6, 8,
+	-1, -1, -1, -1, 2, 4, 6, 8,
 };
 
 
@@ -399,6 +528,16 @@ const int PCM8VOLTBL[16] = {
 // Audio buffer size constants
 #define LATE_SAMPLES_MIN		50		// Minimum latency samples
 #define BETW_SAMPLES_MIN		1		// Minimum between samples
+
+// Audio Effects Constants
+#define REVERB_BUFFER_SIZE		32768	// Reverb buffer size (must be power of 2)
+#define REVERB_BUFFER_MASK		(REVERB_BUFFER_SIZE - 1)
+#define REVERB_COMB_COUNT		8		// Number of comb filters
+#define REVERB_ALLPASS_COUNT	4		// Number of all-pass filters
+#define CHORUS_BUFFER_SIZE		2048	// FM chorus delay buffer
+#define CHORUS_BUFFER_MASK		(CHORUS_BUFFER_SIZE - 1)
+#define STEREO_DELAY_SIZE		512		// Haas effect delay buffer
+#define STEREO_DELAY_MASK		(STEREO_DELAY_SIZE - 1)
 
 
 unsigned char *bswapl(unsigned char *adrs) {
@@ -803,3 +942,76 @@ void DetectMMX() {
 	}
 }
 #endif
+
+// Debug log file support
+FILE* g_DebugLogFile = NULL;
+int g_DebugLogCounter = 0;
+const int MAX_DEBUG_LOG_ENTRIES = 1000;  // Limit log entries to prevent huge files
+
+// ADPCM debug counters
+int g_AdpcmDmaErrorCount = 0;
+
+inline void DebugLog_Init() {
+	if (g_Config.debug_log_level == 0) return;
+
+	char logPath[MAX_PATH];
+
+	// Check if environment variable specifies log file path
+	DWORD result = GetEnvironmentVariableA("X68SOUND_DEBUG_LOG_FILE", logPath, MAX_PATH);
+
+	if (result == 0 || result >= MAX_PATH) {
+		// Environment variable not set, use default path
+		char dllPath[MAX_PATH];
+		GetModuleFileNameA(NULL, dllPath, MAX_PATH);
+
+		// Extract directory and append log filename
+		char* lastSlash = strrchr(dllPath, '\\');
+		if (lastSlash) {
+			*(lastSlash + 1) = '\0';
+			sprintf(logPath, "%sx68sound_debug.log", dllPath);
+		} else {
+			strcpy(logPath, "x68sound_debug.log");
+		}
+	}
+
+	// Open log file (overwrite mode to reset each time DLL is loaded)
+	g_DebugLogFile = fopen(logPath, "w");
+	g_DebugLogCounter = 0;
+
+	if (g_DebugLogFile) {
+		fprintf(g_DebugLogFile, "=== X68Sound Debug Log ===\n");
+		fprintf(g_DebugLogFile, "Log file: %s\n", logPath);
+		fprintf(g_DebugLogFile, "DLL attached at: %s\n", __DATE__ " " __TIME__);
+		fprintf(g_DebugLogFile, "Debug log level: %d\n", g_Config.debug_log_level);
+		fprintf(g_DebugLogFile, "\n");
+		fflush(g_DebugLogFile);
+	}
+}
+
+inline void DebugLog_Close() {
+	if (g_DebugLogFile) {
+		fprintf(g_DebugLogFile, "\n=== Log closed ===\n");
+		fclose(g_DebugLogFile);
+		g_DebugLogFile = NULL;
+	}
+}
+
+inline void DebugLog(int level, const char* format, ...) {
+	if (g_Config.debug_log_level < level || !g_DebugLogFile) return;
+	if (g_DebugLogCounter >= MAX_DEBUG_LOG_ENTRIES) return;
+
+	va_list args;
+	va_start(args, format);
+	vfprintf(g_DebugLogFile, format, args);
+	va_end(args);
+	fflush(g_DebugLogFile);
+
+	g_DebugLogCounter++;
+
+	if (g_DebugLogCounter == MAX_DEBUG_LOG_ENTRIES) {
+		fprintf(g_DebugLogFile, "\n[Log limit reached - no more entries will be written]\n");
+		fflush(g_DebugLogFile);
+	}
+}
+
+#endif // GLOBAL_H

@@ -95,10 +95,24 @@ private:
 
 	int OpmChMask;		// Channel Mask
 
+	// Stereo enhancement delay buffers
+	#define CROSSFEED_DELAY_MAX 441  // 10ms at 44.1kHz (10 * 0.1ms units)
+	#define HAAS_DELAY_MAX 441       // 10ms at 44.1kHz
+	#define EARLY_REFL_DELAY_MAX 882 // 20ms at 44.1kHz
+	short CrossfeedDelayBufL[CROSSFEED_DELAY_MAX];
+	short CrossfeedDelayBufR[CROSSFEED_DELAY_MAX];
+	short HaasDelayBufL[HAAS_DELAY_MAX];
+	short HaasDelayBufR[HAAS_DELAY_MAX];
+	short EarlyReflDelayBuf[EARLY_REFL_DELAY_MAX];
+	int CrossfeedDelayIdx;
+	int HaasDelayIdx;
+	int EarlyReflDelayIdx;
+
 //public:
 	Adpcm	adpcm;
 //private:
 	Pcm8	pcm8[PCM8_NCH];
+	AudioEffects audioEffects;		// Audio effects processor
 
 
 
@@ -116,6 +130,7 @@ public:
 	inline void pcmset22(int ndata);
 
 	inline int GetPcm(void *buf, int ndata);
+	inline void ApplyStereoEnhancement(int &left, int &right);
 
 	inline void timer();
 	inline void betwint();
@@ -295,6 +310,23 @@ inline void Opm::Reset() {
 	OpmHpfInp[0] = OpmHpfInp[1] =
 	OpmHpfInp_prev[0] = OpmHpfInp_prev[1] =
 	OpmHpfOut[0] = OpmHpfOut[1] = 0;
+
+	// Initialize stereo enhancement delay buffers
+	{
+		int i;
+		for (i=0; i<CROSSFEED_DELAY_MAX; ++i) {
+			CrossfeedDelayBufL[i] = CrossfeedDelayBufR[i] = 0;
+		}
+		for (i=0; i<HAAS_DELAY_MAX; ++i) {
+			HaasDelayBufL[i] = HaasDelayBufR[i] = 0;
+		}
+		for (i=0; i<EARLY_REFL_DELAY_MAX; ++i) {
+			EarlyReflDelayBuf[i] = 0;
+		}
+		CrossfeedDelayIdx = 0;
+		HaasDelayIdx = 0;
+		EarlyReflDelayIdx = 0;
+	}
 /*	{
 		int i,j;
 		for (i=0; i<ADPCMLPF_COL*2; ++i) {
@@ -1168,6 +1200,39 @@ inline void Opm::pcmset62(int ndata) {
 			}
 		}
 
+		// Apply audio effects processing
+		// Note: FM is in OutOpm[], ADPCM is in OutOutAdpcm[], PCM8 is part of OutOutAdpcm[]
+		// Out[] already contains the mixed signal
+		{
+			int fm_L = (OutOpm[0] >> 5);    // FM output (left)
+			int fm_R = (OutOpm[1] >> 5);    // FM output (right)
+			int adpcm = 0;                  // ADPCM is mono but mixed into stereo
+			int pcm8_L = (OutOutAdpcm[0] >> 4);  // PCM8 + ADPCM (left)
+			int pcm8_R = (OutOutAdpcm[1] >> 4);  // PCM8 + ADPCM (right)
+
+			// Process all effects in the chain
+			audioEffects.ProcessEffects(Out[0], Out[1], fm_L, fm_R, adpcm, pcm8_L, pcm8_R);
+		}
+
+		// Final clipping after effects processing
+		if ((unsigned int)(Out[0]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[0]+32767) >= (int)(32767*2)) {
+				Out[0] = 32767;
+			} else {
+				Out[0] = -32767;
+			}
+		}
+		if ((unsigned int)(Out[1]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[1]+32767) >= (int)(32767*2)) {
+				Out[1] = 32767;
+			} else {
+				Out[1] = -32767;
+			}
+		}
+
+		// Apply stereo enhancement effects
+		ApplyStereoEnhancement(Out[0], Out[1]);
+
 		PcmBuf[PcmBufPtr][0] = Out[0];
 		PcmBuf[PcmBufPtr][1] = Out[1];
 
@@ -1407,6 +1472,39 @@ inline void Opm::pcmset22(int ndata) {
 			}
 		}
 
+		// Apply audio effects processing
+		// Note: FM is in OutOpm[], ADPCM is in OutOutAdpcm[], PCM8 is part of OutOutAdpcm[]
+		// Out[] already contains the mixed signal
+		{
+			int fm_L = (OutOpm[0] >> 5);    // FM output (left)
+			int fm_R = (OutOpm[1] >> 5);    // FM output (right)
+			int adpcm = 0;                  // ADPCM is mono but mixed into stereo
+			int pcm8_L = (OutOutAdpcm[0] >> 4);  // PCM8 + ADPCM (left)
+			int pcm8_R = (OutOutAdpcm[1] >> 4);  // PCM8 + ADPCM (right)
+
+			// Process all effects in the chain
+			audioEffects.ProcessEffects(Out[0], Out[1], fm_L, fm_R, adpcm, pcm8_L, pcm8_R);
+		}
+
+		// Final clipping after effects processing
+		if ((unsigned int)(Out[0]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[0]+32767) >= (int)(32767*2)) {
+				Out[0] = 32767;
+			} else {
+				Out[0] = -32767;
+			}
+		}
+		if ((unsigned int)(Out[1]+32767) > (unsigned int)(32767*2)) {
+			if ((int)(Out[1]+32767) >= (int)(32767*2)) {
+				Out[1] = 32767;
+			} else {
+				Out[1] = -32767;
+			}
+		}
+
+		// Apply stereo enhancement effects
+		ApplyStereoEnhancement(Out[0], Out[1]);
+
 		PcmBuf[PcmBufPtr][0] = Out[0];
 		PcmBuf[PcmBufPtr][1] = Out[1];
 
@@ -1415,6 +1513,113 @@ inline void Opm::pcmset22(int ndata) {
 			PcmBufPtr = 0;
 		}
 	}
+}
+
+// Apply stereo enhancement effects to left/right audio channels
+inline void Opm::ApplyStereoEnhancement(int &left, int &right) {
+	// Get configuration
+	extern X68SoundConfig g_Config;
+
+	int enhanced_left = left;
+	int enhanced_right = right;
+
+	// 1. Crossfeed - Mix opposite channel with delay for natural stereo
+	if (g_Config.crossfeed_level > 0) {
+		// Calculate delay in samples (delay * 44.1 samples per 0.1ms)
+		int delay_samples = (g_Config.crossfeed_delay * 441) / 10;
+		if (delay_samples >= CROSSFEED_DELAY_MAX) delay_samples = CROSSFEED_DELAY_MAX - 1;
+
+		// Get delayed samples from opposite channels
+		int delayed_left = CrossfeedDelayBufL[(CrossfeedDelayIdx + CROSSFEED_DELAY_MAX - delay_samples) % CROSSFEED_DELAY_MAX];
+		int delayed_right = CrossfeedDelayBufR[(CrossfeedDelayIdx + CROSSFEED_DELAY_MAX - delay_samples) % CROSSFEED_DELAY_MAX];
+
+		// Store current samples in delay buffer
+		CrossfeedDelayBufL[CrossfeedDelayIdx] = (short)left;
+		CrossfeedDelayBufR[CrossfeedDelayIdx] = (short)right;
+		CrossfeedDelayIdx = (CrossfeedDelayIdx + 1) % CROSSFEED_DELAY_MAX;
+
+		// Mix opposite channel (attenuated) for crossfeed effect
+		int crossfeed_amount = g_Config.crossfeed_level;  // 0-100
+		enhanced_left += (delayed_right * crossfeed_amount) / 200;   // /200 = 50% max mix
+		enhanced_right += (delayed_left * crossfeed_amount) / 200;
+	}
+
+	// 2. Center Channel Widening - Detect and spread center-panned audio
+	if (g_Config.center_channel_width > 0) {
+		// Detect center channel: when L and R are similar
+		int mid = (enhanced_left + enhanced_right) / 2;
+		int side = (enhanced_left - enhanced_right) / 2;
+
+		// Enhance side component to widen stereo image
+		int width_factor = 100 + g_Config.center_channel_width;  // 100-200 (0-100% increase)
+		side = (side * width_factor) / 100;
+
+		// Reconstruct L/R from mid-side
+		enhanced_left = mid + side;
+		enhanced_right = mid - side;
+	}
+
+	// 3. Haas Effect - Precedence effect using small time delays
+	if (g_Config.haas_effect_level > 0) {
+		// Calculate delay in samples
+		int delay_samples = (g_Config.haas_delay * 441) / 10;
+		if (delay_samples >= HAAS_DELAY_MAX) delay_samples = HAAS_DELAY_MAX - 1;
+
+		// Get delayed samples
+		int delayed_left = HaasDelayBufL[(HaasDelayIdx + HAAS_DELAY_MAX - delay_samples) % HAAS_DELAY_MAX];
+		int delayed_right = HaasDelayBufR[(HaasDelayIdx + HAAS_DELAY_MAX - delay_samples) % HAAS_DELAY_MAX];
+
+		// Store current samples
+		HaasDelayBufL[HaasDelayIdx] = (short)enhanced_left;
+		HaasDelayBufR[HaasDelayIdx] = (short)enhanced_right;
+		HaasDelayIdx = (HaasDelayIdx + 1) % HAAS_DELAY_MAX;
+
+		// Mix delayed signal to create precedence effect
+		int haas_amount = g_Config.haas_effect_level;  // 0-100
+		enhanced_left += (delayed_right * haas_amount) / 300;   // Subtle mix to opposite channel
+		enhanced_right += (delayed_left * haas_amount) / 300;
+	}
+
+	// 4. Early Reflections - Add initial reverb reflections for spatial depth
+	if (g_Config.early_reflections > 0) {
+		// Multi-tap delay for early reflections (simulating room reflections)
+		// Typical early reflection times: 10-20ms
+		int mono_input = (enhanced_left + enhanced_right) / 2;
+
+		// Multiple reflection taps at different delays
+		int refl_delays[4] = {220, 331, 441, 573};  // ~5ms, 7.5ms, 10ms, 13ms at 44.1kHz
+		int refl_gains[4] = {60, 45, 35, 25};        // Decreasing amplitude
+
+		int reflections = 0;
+		for (int i = 0; i < 4; ++i) {
+			if (refl_delays[i] < EARLY_REFL_DELAY_MAX) {
+				int tap_idx = (EarlyReflDelayIdx + EARLY_REFL_DELAY_MAX - refl_delays[i]) % EARLY_REFL_DELAY_MAX;
+				reflections += (EarlyReflDelayBuf[tap_idx] * refl_gains[i]) / 100;
+			}
+		}
+
+		// Store current mono input
+		EarlyReflDelayBuf[EarlyReflDelayIdx] = (short)mono_input;
+		EarlyReflDelayIdx = (EarlyReflDelayIdx + 1) % EARLY_REFL_DELAY_MAX;
+
+		// Mix reflections into output
+		int refl_level = g_Config.early_reflections;  // 0-100
+		reflections = (reflections * refl_level) / 100;
+
+		// Add reflections with stereo spread (inverted for each channel)
+		enhanced_left += reflections / 4;
+		enhanced_right -= reflections / 4;  // Opposite phase for width
+	}
+
+	// Final saturation to prevent overflow from all the processing
+	const int ENHANCED_LIMIT = 32767;
+	if (enhanced_left > ENHANCED_LIMIT) enhanced_left = ENHANCED_LIMIT;
+	if (enhanced_left < -ENHANCED_LIMIT) enhanced_left = -ENHANCED_LIMIT;
+	if (enhanced_right > ENHANCED_LIMIT) enhanced_right = ENHANCED_LIMIT;
+	if (enhanced_right < -ENHANCED_LIMIT) enhanced_right = -ENHANCED_LIMIT;
+
+	left = enhanced_left;
+	right = enhanced_right;
 }
 
 inline int Opm::GetPcm(void *buf, int ndata) {
@@ -1498,8 +1703,10 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 		samprate = g_Config.output_sample_rate;
 	}
 
-	// Debug logging
-	if (g_Config.enable_debug_log) {
+	// Debug logging (Level 1: Basic information)
+	DebugLog(1, "[Opm::Start] samprate=%d, opmflag=%d, adpcmflag=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
+		samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] Start: samprate=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
 			samprate, betw, pcmbuf, late, rev);
@@ -1536,6 +1743,9 @@ inline int Opm::Start(int samprate, int opmflag, int adpcmflag,
 	MakeTable();
 	Reset();
 
+	// Initialize audio effects processor with the current sample rate
+	audioEffects.Init(Samprate);
+
 	return WaveAndTimerStart();
 }
 
@@ -1560,8 +1770,8 @@ inline int Opm::StartPcm(int samprate, int opmflag, int adpcmflag, int pcmbuf) {
 		samprate = g_Config.output_sample_rate;
 	}
 
-	// Debug logging
-	if (g_Config.enable_debug_log) {
+	// Debug logging (Level 1: Basic information)
+	if (g_Config.debug_log_level >= 1) {
 		char logMsg[256];
 		sprintf(logMsg, "[X68Sound] StartPcm: samprate=%d, pcmbuf=%d\n", samprate, pcmbuf);
 		OutputDebugStringA(logMsg);
@@ -1588,6 +1798,9 @@ inline int Opm::StartPcm(int samprate, int opmflag, int adpcmflag, int pcmbuf) {
 
 	MakeTable();
 	Reset();
+
+	// Initialize audio effects processor with the current sample rate
+	audioEffects.Init(Samprate);
 
 	PcmBufSize = 0xFFFFFFFF;
 
@@ -1894,13 +2107,29 @@ inline void Opm::AdpcmPoke(unsigned char data) {
 	}
 	return;
 #endif
-	
+
+	unsigned char oldAdpcmReg = adpcm.AdpcmReg;
 
 	if (data & 0x02) {
 		adpcm.AdpcmReg &= 0x7F;
+		// Reset ADPCM state (decoder, HPF filter) to prevent inheriting state from previous sound
+		// This prevents beep artifacts caused by HPF filter state accumulation
+		adpcm.Reset();
+		static int adpcmStartCount = 0;
+		if (adpcmStartCount < 10) {
+			DebugLog(2, "[Opm::AdpcmPoke] START: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStartCount);
+			adpcmStartCount++;
+		}
 	} else if (data & 0x01) {
 		adpcm.AdpcmReg |= 0x80;
 		adpcm.Reset();
+		static int adpcmStopCount = 0;
+		if (adpcmStopCount < 10) {
+			DebugLog(2, "[Opm::AdpcmPoke] STOP: data=0x%02X, AdpcmReg 0x%02X -> 0x%02X (count=%d)\n",
+				data, oldAdpcmReg, adpcm.AdpcmReg, adpcmStopCount);
+			adpcmStopCount++;
+		}
 	}
 }
 inline unsigned char Opm::PpiPeek() {
@@ -2089,6 +2318,7 @@ inline int Opm::Pcm8_Abort() {
 inline int Opm::SetTotalVolume(int v) {
 	if ((unsigned int)v <= 65535) {
 		TotalVolume = v;
+		DebugLog(1, "[Opm::SetTotalVolume] TotalVolume set to %d\n", TotalVolume);
 	}
 	return TotalVolume;
 }

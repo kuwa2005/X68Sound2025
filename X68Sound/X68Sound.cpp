@@ -12,6 +12,7 @@
 #include	"lfo.h"
 #include	"adpcm.h"
 #include	"pcm8.h"
+#include	"audioeffects.h"
 #include	"opm.h"
 
 
@@ -150,7 +151,11 @@ void CALLBACK OpmTimeProc(UINT uID, UINT uMsg, DWORD dwUser, DWORD dw1, DWORD dw
 // X68Sound initialization (waveOut output mode)
 extern "C" int X68Sound_Start(int samprate, int opmflag, int adpcmflag,
 				  int betw, int pcmbuf, int late, double rev) {
-	return opm.Start(samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
+	DebugLog(1, "[X68Sound_Start] samprate=%d, opmflag=%d, adpcmflag=%d, betw=%d, pcmbuf=%d, late=%d, rev=%.2f\n",
+		samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
+	int result = opm.Start(samprate, opmflag, adpcmflag, betw, pcmbuf, late, rev);
+	DebugLog(1, "[X68Sound_Start] result=%d\n", result);
+	return result;
 }
 extern "C" int X68Sound_Samprate(int samprate) {
 	return opm.SetSamprate(samprate);
@@ -195,12 +200,22 @@ extern "C" unsigned char X68Sound_AdpcmPeek() {
 	return opm.AdpcmPeek();
 }
 extern "C" void X68Sound_AdpcmPoke(unsigned char data) {
+	static int adpcmPokeCount = 0;
+	if (adpcmPokeCount < 10) {
+		DebugLog(2, "[X68Sound_AdpcmPoke] data=0x%02X (count=%d)\n", data, adpcmPokeCount);
+		adpcmPokeCount++;
+	}
 	opm.AdpcmPoke(data);
 }
 extern "C" unsigned char X68Sound_PpiPeek() {
 	return opm.PpiPeek();
 }
 extern "C" void X68Sound_PpiPoke(unsigned char data) {
+	static int ppiPokeCount = 0;
+	if (ppiPokeCount < 10) {
+		DebugLog(2, "[X68Sound_PpiPoke] data=0x%02X (count=%d)\n", data, ppiPokeCount);
+		ppiPokeCount++;
+	}
 	opm.PpiPoke(data);
 }
 extern "C" void X68Sound_PpiCtrl(unsigned char data) {
@@ -210,6 +225,11 @@ extern "C" unsigned char X68Sound_DmaPeek(unsigned char adrs) {
 	return opm.DmaPeek(adrs);
 }
 extern "C" void X68Sound_DmaPoke(unsigned char adrs, unsigned char data) {
+	static int dmaPokeCount = 0;
+	if (dmaPokeCount < 20) {
+		DebugLog(2, "[X68Sound_DmaPoke] adrs=0x%02X, data=0x%02X (count=%d)\n", adrs, data, dmaPokeCount);
+		dmaPokeCount++;
+	}
 	opm.DmaPoke(adrs, data);
 }
 extern "C" void X68Sound_DmaInt(void (CALLBACK *proc)()) {
@@ -227,6 +247,11 @@ extern "C" void X68Sound_WaveFunc(int (CALLBACK *func)()) {
 }
 
 extern "C" int X68Sound_Pcm8_Out(int ch, void *adrs, int mode, int len) {
+	static int pcm8OutCount = 0;
+	if (pcm8OutCount < 10) {
+		DebugLog(2, "[X68Sound_Pcm8_Out] ch=%d, mode=0x%06X, len=%d (count=%d)\n", ch, mode, len, pcm8OutCount);
+		pcm8OutCount++;
+	}
 	return opm.Pcm8_Out(ch, adrs, mode, len);
 }
 extern "C" int X68Sound_Pcm8_Aot(int ch, void *tbl, int mode, int cnt) {
@@ -250,6 +275,7 @@ extern "C" int X68Sound_Pcm8_Abort() {
 
 
 extern "C" int X68Sound_TotalVolume(int v) {
+	DebugLog(2, "[X68Sound_TotalVolume] v=%d\n", v);
 	return opm.SetTotalVolume(v);
 }
 
@@ -278,13 +304,27 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 			// Load environment variables when DLL is loaded
 			LoadConfigFromEnvironment();
 
-			if (g_Config.enable_debug_log) {
+			// Initialize debug log file
+			DebugLog_Init();
+			DebugLog(1, "[DllMain] DLL_PROCESS_ATTACH\n");
+			DebugLog(1, "  Config: PCM_BUFFER=%d, BETW=%d, LATE=%d\n",
+				g_Config.pcm_buffer_size, g_Config.betw_time, g_Config.late_time);
+			DebugLog(1, "  Config: LINEAR_INTERP=%d, VOL_SMOOTH=%d, OPM_SINE_INTERP=%d\n",
+				g_Config.linear_interpolation, g_Config.volume_smoothing,
+				g_Config.opm_sine_interpolation);
+			DebugLog(1, "  Config: OUTPUT_RATE=%d (0=auto)\n", g_Config.output_sample_rate);
+			DebugLog(1, "\n");
+
+			if (g_Config.debug_log_level >= 1) {
 				OutputDebugStringA("[X68Sound] DLL loaded successfully\n");
 			}
 			break;
 
 		case DLL_PROCESS_DETACH:
-			if (g_Config.enable_debug_log) {
+			DebugLog(1, "[DllMain] DLL_PROCESS_DETACH\n");
+			DebugLog_Close();
+
+			if (g_Config.debug_log_level >= 1) {
 				OutputDebugStringA("[X68Sound] DLL unloading\n");
 			}
 			break;
