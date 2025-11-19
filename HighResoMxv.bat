@@ -1,97 +1,105 @@
 @echo off
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM Šî–{Ý’è
-REM ƒVƒXƒeƒ€‚Ì“®ì‚ÉŠÖ‚·‚éŠî–{“I‚ÈÝ’è‚Å‚·B
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM åŸºæœ¬è¨­å®š
+REM ã‚·ã‚¹ãƒ†ãƒ ã®å‹•ä½œã«é–¢ã™ã‚‹åŸºæœ¬çš„ãªè¨­å®šã§ã™ã€‚
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
 
-REM PCMƒoƒbƒtƒ@ƒTƒCƒYB‘å‚«‚¢‚Ù‚ÇˆÀ’èA¬‚³‚¢‚Ù‚Ç’á’x‰„i2-20j
+REM PCMãƒãƒƒãƒ•ã‚¡ã‚µã‚¤ã‚ºã€‚å¤§ãã„ã»ã©å®‰å®šã€å°ã•ã„ã»ã©ä½Žé…å»¶ï¼ˆ2-20ï¼‰
 SET X68SOUND_PCM_BUFFER=5
 
-REM BetweenŽžŠÔimsjBƒ^ƒCƒ}[Š„‚èž‚ÝŠÔŠui1-50j
+REM Betweenæ™‚é–“ï¼ˆmsï¼‰ã€‚ã‚¿ã‚¤ãƒžãƒ¼å‰²ã‚Šè¾¼ã¿é–“éš”ï¼ˆ1-50ï¼‰
 SET X68SOUND_BETW_TIME=5
 
-REM ƒŒƒCƒeƒ“ƒVŽžŠÔimsjB‘å‚«‚¢‚Ù‚Ç‰¹“rØ‚ê‚É‹­‚¢i50-1000j
+REM ãƒ¬ã‚¤ãƒ†ãƒ³ã‚·æ™‚é–“ï¼ˆmsï¼‰ã€‚å¤§ãã„ã»ã©éŸ³é€”åˆ‡ã‚Œã«å¼·ã„ï¼ˆ50-1000ï¼‰
 SET X68SOUND_LATE_TIME=500
 
-REM ƒTƒ“ƒvƒ‹ƒŒ[ƒg•â³ŒW”i0.1-10.0j
+REM ã‚µãƒ³ãƒ—ãƒ«ãƒ¬ãƒ¼ãƒˆè£œæ­£ä¿‚æ•°ï¼ˆ0.1-10.0ï¼‰
 SET X68SOUND_REV_MARGIN=1.0
 
-REM ƒoƒbƒtƒ@ƒTƒCƒYæ”Bƒƒ‚ƒŠ‚É—]—T‚ª‚ ‚éê‡‚É‘‰Ái1-8j
+REM ãƒãƒƒãƒ•ã‚¡ã‚µã‚¤ã‚ºä¹—æ•°ã€‚ãƒ¡ãƒ¢ãƒªã«ä½™è£•ãŒã‚ã‚‹å ´åˆã«å¢—åŠ ï¼ˆ1-8ï¼‰
 SET X68SOUND_BUF_MULTIPLIER=1
 
-REM o—ÍƒTƒ“ƒvƒŠƒ“ƒOƒŒ[ƒgiHzji15625-192000j
+REM å‡ºåŠ›ã‚µãƒ³ãƒ—ãƒªãƒ³ã‚°ãƒ¬ãƒ¼ãƒˆï¼ˆHzï¼‰ï¼ˆ15625-192000ï¼‰
 SET X68SOUND_OUTPUT_RATE=96000
 
-REM ’á’x‰„dŽ‹: PCM_BUFFER=3, LATE_TIME=100
-REM ˆÀ’è«dŽ‹: PCM_BUFFER=8, LATE_TIME=300
-REM ‚‰¹Ž¿: OUTPUT_RATE=96000 ‚Ü‚½‚Í 192000
+REM ä½Žé…å»¶é‡è¦–: PCM_BUFFER=3, LATE_TIME=100
+REM å®‰å®šæ€§é‡è¦–: PCM_BUFFER=8, LATE_TIME=300
+REM é«˜éŸ³è³ª: OUTPUT_RATE=96000 ã¾ãŸã¯ 192000
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM ‰¹ºM†ˆ—‚Ì•iŽ¿‚ðŒüã‚³‚¹‚é‹@”\‚Å‚·B
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM éŸ³å£°ä¿¡å·å‡¦ç†ã®å“è³ªã‚’å‘ä¸Šã•ã›ã‚‹æ©Ÿèƒ½ã§ã™ã€‚
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
 
-REM PCM8/ADPCMüŒ`•âŠÔiƒGƒCƒŠƒAƒVƒ“ƒOƒmƒCƒY‚ðíŒ¸AŠŠ‚ç‚©‚È‰¹Ž¿j 1=ON„§ i0/1j
+REM PCM8/ADPCMç·šå½¢è£œé–“ï¼ˆã‚¨ã‚¤ãƒªã‚¢ã‚·ãƒ³ã‚°ãƒŽã‚¤ã‚ºã‚’å‰Šæ¸›ã€æ»‘ã‚‰ã‹ãªéŸ³è³ªï¼‰ 1=ONæŽ¨å¥¨ ï¼ˆ0/1ï¼‰
 SET X68SOUND_LINEAR_INTERPOLATION=1
 
-REM PCM8ƒ{ƒŠƒ…[ƒ€ƒXƒ€[ƒWƒ“ƒOi‰¹—Ê•Ï‰»‚ÌƒNƒŠƒbƒNƒmƒCƒY‚ðœ‹ŽjB1=ON„§i0/1j
+REM PCM8ãƒœãƒªãƒ¥ãƒ¼ãƒ ã‚¹ãƒ ãƒ¼ã‚¸ãƒ³ã‚°ï¼ˆéŸ³é‡å¤‰åŒ–ã®ã‚¯ãƒªãƒƒã‚¯ãƒŽã‚¤ã‚ºã‚’é™¤åŽ»ï¼‰ã€‚1=ONæŽ¨å¥¨ï¼ˆ0/1ï¼‰
 SET X68SOUND_VOLUME_SMOOTHING=1
 
-REM OPM³Œ·”güŒ`•âŠÔB1=ON„§i0/1j
+REM OPMæ­£å¼¦æ³¢ç·šå½¢è£œé–“ã€‚1=ONæŽ¨å¥¨ï¼ˆ0/1ï¼‰
 SET X68SOUND_OPM_SINE_INTERP=1
 
-REM ADPCMƒfƒR[ƒ_[i‚æ‚è³Šm‚ÈADPCMƒfƒR[ƒhA–L‚©‚È‰¹Fj 0=Legacy, 1=MSM6258‚‰¹Ž¿i0/1j
+REM ADPCMãƒ‡ã‚³ãƒ¼ãƒ€ãƒ¼ï¼ˆã‚ˆã‚Šæ­£ç¢ºãªADPCMãƒ‡ã‚³ãƒ¼ãƒ‰ã€è±Šã‹ãªéŸ³è‰²ï¼‰ 0=Legacy, 1=MSM6258é«˜éŸ³è³ªï¼ˆ0/1ï¼‰
 SET X68SOUND_ADPCM_MODE=1
 
-REM OPM‰¹Ž¿ƒ‚[ƒhB0=•W€, 1=‚•iŽ¿, 2=Å‚•iŽ¿i0-2j
+REM OPMéŸ³è³ªãƒ¢ãƒ¼ãƒ‰ã€‚0=æ¨™æº–, 1=é«˜å“è³ª, 2=æœ€é«˜å“è³ªï¼ˆ0-2ï¼‰
 SET X68SOUND_OPM_QUALITY=2
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM ƒXƒeƒŒƒI‹­‰»E—§‘Ì‰¹‹¿
-REM X68000‚ÌL/C/Rƒpƒ“ƒjƒ“ƒO‚ð—§‘Ì“I‚ÈƒXƒeƒŒƒI‰¹ê‚É•ÏŠ·‚·‚é‹@”\‚Å‚·B
-REM Œø‰Ê: ƒwƒbƒhƒzƒ“‚Ìˆ³”—Š´‚ðŒyŒ¸AŽ©‘R‚È’èˆÊŠ´
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM ã‚¹ãƒ†ãƒ¬ã‚ªå¼·åŒ–ãƒ»ç«‹ä½“éŸ³éŸ¿
+REM X68000ã®L/C/Rãƒ‘ãƒ³ãƒ‹ãƒ³ã‚°ã‚’ç«‹ä½“çš„ãªã‚¹ãƒ†ãƒ¬ã‚ªéŸ³å ´ã«å¤‰æ›ã™ã‚‹æ©Ÿèƒ½ã§ã™ã€‚
+REM åŠ¹æžœ: ãƒ˜ãƒƒãƒ‰ãƒ›ãƒ³ã®åœ§è¿«æ„Ÿã‚’è»½æ¸›ã€è‡ªç„¶ãªå®šä½æ„Ÿ
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
 
-REM ƒXƒeƒŒƒI•i%jB100=’Êí, 150=L‚¢, 200=’´L‚¢i50-200j
+REM ã‚¹ãƒ†ãƒ¬ã‚ªå¹…ï¼ˆ%ï¼‰ã€‚100=é€šå¸¸, 150=åºƒã„, 200=è¶…åºƒã„ï¼ˆ50-200ï¼‰
 SET X68SOUND_STEREO_WIDTH=125
 
-REM ƒNƒƒXƒtƒB[ƒhiƒwƒbƒhƒzƒ“Å“K‰»j
-REM ƒNƒƒXƒtƒB[ƒhƒŒƒxƒ‹B0=OFF, 30=Ž©‘R, 50=‹­‚¢i0-100j
+REM ã‚¯ãƒ­ã‚¹ãƒ•ã‚£ãƒ¼ãƒ‰ï¼ˆãƒ˜ãƒƒãƒ‰ãƒ›ãƒ³æœ€é©åŒ–ï¼‰
+REM ã‚¯ãƒ­ã‚¹ãƒ•ã‚£ãƒ¼ãƒ‰ãƒ¬ãƒ™ãƒ«ã€‚0=OFF, 30=è‡ªç„¶, 50=å¼·ã„ï¼ˆ0-100ï¼‰
 SET X68SOUND_CROSSFEED=50
 
-REM ƒNƒƒXƒtƒB[ƒh’x‰„i0.1ms’PˆÊjB2=0.2ms i1-10j
+REM ã‚¯ãƒ­ã‚¹ãƒ•ã‚£ãƒ¼ãƒ‰é…å»¶ï¼ˆ0.1mså˜ä½ï¼‰ã€‚2=0.2ms ï¼ˆ1-10ï¼‰
 SET X68SOUND_CROSSFEED_DELAY=2
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM ƒZƒ“ƒ^[ƒ`ƒƒƒ“ƒlƒ‹•Šg’£
-REM L/C/R‚ð‹[Ž—“I‚ÉL‚¢ƒXƒeƒŒƒI‰¹ê‚É•ÏŠ·
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM ã‚»ãƒ³ã‚¿ãƒ¼ãƒãƒ£ãƒ³ãƒãƒ«å¹…æ‹¡å¼µ
+REM L/C/Rã‚’æ“¬ä¼¼çš„ã«åºƒã„ã‚¹ãƒ†ãƒ¬ã‚ªéŸ³å ´ã«å¤‰æ›
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
 
-REM ƒZƒ“ƒ^[’èˆÊ‚Ì‰¹‚ð¶‰E‚ÉL‚°‚éB0=OFF, 70=„§i0-100j
+REM ã‚»ãƒ³ã‚¿ãƒ¼å®šä½ã®éŸ³ã‚’å·¦å³ã«åºƒã’ã‚‹ã€‚0=OFF, 70=æŽ¨å¥¨ï¼ˆ0-100ï¼‰
 SET X68SOUND_CENTER_WIDTH=70
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM ƒn[ƒXŒø‰Êiæs‰¹Œø‰Êj
-REM ‰¹‚É‰œs‚«‚ÆL‚ª‚è‚ð‰Á‚¦A—§‘Ì“I‚ÈƒTƒEƒ“ƒhƒXƒe[ƒW‚ðŽÀŒ»
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM ãƒãƒ¼ã‚¹åŠ¹æžœï¼ˆå…ˆè¡ŒéŸ³åŠ¹æžœï¼‰
+REM éŸ³ã«å¥¥è¡Œãã¨åºƒãŒã‚Šã‚’åŠ ãˆã€ç«‹ä½“çš„ãªã‚µã‚¦ãƒ³ãƒ‰ã‚¹ãƒ†ãƒ¼ã‚¸ã‚’å®Ÿç¾
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
 
-REM ƒn[ƒXŒø‰ÊƒŒƒxƒ‹B0=OFF, 50=„§i0-100j
+REM ãƒãƒ¼ã‚¹åŠ¹æžœãƒ¬ãƒ™ãƒ«ã€‚0=OFF, 50=æŽ¨å¥¨ï¼ˆ0-100ï¼‰
 SET X68SOUND_HAAS_EFFECT=50
 
-REM ƒn[ƒXŒø‰Ê’x‰„i0.1ms’PˆÊjB5=0.5msi1-10j
+REM ãƒãƒ¼ã‚¹åŠ¹æžœé…å»¶ï¼ˆ0.1mså˜ä½ï¼‰ã€‚5=0.5msï¼ˆ1-10ï¼‰
 SET X68SOUND_HAAS_DELAY=5
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM ‰Šú”½ŽË‰¹
-REM •”‰®‚Ì•Ç‚©‚ç‚Ì”½ŽË‚ðƒVƒ~ƒ…ƒŒ[ƒgA‹óŠÔ‚Ì[‚Ý‚ð‰‰o
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM åˆæœŸåå°„éŸ³
+REM éƒ¨å±‹ã®å£ã‹ã‚‰ã®åå°„ã‚’ã‚·ãƒŸãƒ¥ãƒ¬ãƒ¼ãƒˆã€ç©ºé–“ã®æ·±ã¿ã‚’æ¼”å‡º
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
 
-REM ‰Šú”½ŽË‰¹ƒŒƒxƒ‹B0=OFF, 30=„§i0-100j
+REM åˆæœŸåå°„éŸ³ãƒ¬ãƒ™ãƒ«ã€‚0=OFF, 30=æŽ¨å¥¨ï¼ˆ0-100ï¼‰
 SET X68SOUND_EARLY_REFLECTIONS=50
 
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
-REM set X68SOUND_DEBUG=0
-REM ¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡
+REM é«˜éŸ³åŸŸè£œå®Œï¼ˆãƒã‚¤ã‚¸ã‚§ãƒãƒ¬ãƒ¼ã‚¿ãƒ¼ï¼‰(0-4)
+set X68SOUND_EXCITER=4
 
-REM •’iŽg‚Á‚Ä‚¢‚éMDXƒvƒŒƒCƒ„[‚ð‹Lq
+REM ä½ŽéŸ³åŸŸè£œå®Œï¼ˆãƒ­ãƒ¼ã‚¸ã‚§ãƒãƒ¬ãƒ¼ã‚¿ãƒ¼ï¼‰(0-4)
+set X68SOUND_SUB_BASS=4
+
+
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+REM set X68SOUND_DEBUG=0
+REM â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– â– 
+
+REM æ™®æ®µä½¿ã£ã¦ã„ã‚‹MDXãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’è¨˜è¿°
 "E:\Tools\mdx\mxv.exe"
+
