@@ -1492,15 +1492,20 @@ inline void Opm::pcmset22(int ndata) {
 
 			// Apply soft clipping to FM output to prevent distortion when FM master volume is high
 			// This prevents FM from clipping before being mixed with ADPCM output
-			// OutOpm[] is scaled by >>5 before adding to Out[] (line 1493-1494), so we scale appropriately
+			// We scale down, apply soft clipping, then scale back up.
 			if (g_Config.soft_clipping_enable) {
-				const int FM_SCALE_SHIFT = 5;  // >>5 is applied later at line 1493-1494
-				int fm_L = -(OutOpm[0] >> FM_SCALE_SHIFT);
-				int fm_R = -(OutOpm[1] >> FM_SCALE_SHIFT);
-				fm_L = ApplySoftClipping(fm_L, g_Config.soft_clipping_threshold);
-				fm_R = ApplySoftClipping(fm_R, g_Config.soft_clipping_threshold);
-				OutOpm[0] = -(fm_L << FM_SCALE_SHIFT);
-				OutOpm[1] = -(fm_R << FM_SCALE_SHIFT);
+				const int FM_SCALE_SHIFT = 5;  // >>5 is applied at mixing stage
+
+				// Process left channel: scale down, clip, scale back up
+				// Note: OutOpm[] is negated when added to Out[] (line: Out[] -= OutOpm[] >> 5)
+				int fm_L_output = -(OutOpm[0] >> FM_SCALE_SHIFT);  // Actual output value
+				fm_L_output = ApplySoftClipping(fm_L_output, g_Config.soft_clipping_threshold);
+				OutOpm[0] = -(fm_L_output << FM_SCALE_SHIFT);  // Scale back
+
+				// Process right channel
+				int fm_R_output = -(OutOpm[1] >> FM_SCALE_SHIFT);
+				fm_R_output = ApplySoftClipping(fm_R_output, g_Config.soft_clipping_threshold);
+				OutOpm[1] = -(fm_R_output << FM_SCALE_SHIFT);
 			}
 
 			Out[0] -= OutOpm[0]>>(5);
@@ -1680,15 +1685,22 @@ inline void Opm::pcmset22(int ndata) {
 
 			// Apply soft clipping to ADPCM output to prevent distortion when ADPCM master volume is high
 			// This prevents ADPCM from clipping before being mixed with FM output
-			// OutOutAdpcm[] is scaled by >>4 before adding to Out[] (line 1672-1673), so we scale appropriately
+			// Note: OutOutAdpcm[] values are very large due to *40 amplification (line 1659-1660)
+			// and IIR filter processing. After >>4 shift (at line ~1733), values should be in ±32767 range.
+			// We scale down, apply soft clipping, then scale back up.
 			if (g_Config.soft_clipping_enable) {
-				const int ADPCM_SCALE_SHIFT = 4;  // >>4 is applied later at line 1672-1673
-				int adpcm_L = -(OutOutAdpcm[0] >> ADPCM_SCALE_SHIFT);
-				int adpcm_R = -(OutOutAdpcm[1] >> ADPCM_SCALE_SHIFT);
-				adpcm_L = ApplySoftClipping(adpcm_L, g_Config.soft_clipping_threshold);
-				adpcm_R = ApplySoftClipping(adpcm_R, g_Config.soft_clipping_threshold);
-				OutOutAdpcm[0] = -(adpcm_L << ADPCM_SCALE_SHIFT);
-				OutOutAdpcm[1] = -(adpcm_R << ADPCM_SCALE_SHIFT);
+				const int ADPCM_SCALE_SHIFT = 4;  // >>4 is applied at mixing stage
+
+				// Process left channel: scale down, clip, scale back up
+				// Note: OutOutAdpcm[] is negated when added to Out[] (line: Out[] -= OutOutAdpcm[] >> 4)
+				int adpcm_L_output = -(OutOutAdpcm[0] >> ADPCM_SCALE_SHIFT);  // Actual output value
+				adpcm_L_output = ApplySoftClipping(adpcm_L_output, g_Config.soft_clipping_threshold);
+				OutOutAdpcm[0] = -(adpcm_L_output << ADPCM_SCALE_SHIFT);  // Scale back
+
+				// Process right channel
+				int adpcm_R_output = -(OutOutAdpcm[1] >> ADPCM_SCALE_SHIFT);
+				adpcm_R_output = ApplySoftClipping(adpcm_R_output, g_Config.soft_clipping_threshold);
+				OutOutAdpcm[1] = -(adpcm_R_output << ADPCM_SCALE_SHIFT);
 			}
 
 
