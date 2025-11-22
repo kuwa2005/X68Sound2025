@@ -1402,6 +1402,26 @@ inline void Opm::pcmset22(int ndata) {
 							}
 						}
 
+
+					// Apply auto-gain adjustment for FM octave layering (prevent clipping)
+					if (g_Config.octave_auto_gain) {
+						// Count active FM octave layers
+						int fm_layer_count = 0;
+						if (g_Config.fm_octave_upper_enable && g_Config.fm_octave_upper_volume > 0) fm_layer_count++;
+						if (g_Config.fm_octave_lower_enable && g_Config.fm_octave_lower_volume > 0) fm_layer_count++;
+
+						// Apply gain reduction based on layer count
+						// 0 layers: 100% (no reduction)
+						// 1 layer:  75% (通常100% + レイヤー50% = 150% → 75%で112.5%)
+						// 2 layers: 60% (通常100% + レイヤー2×50% = 200% → 60%で120%)
+						if (fm_layer_count == 1) {
+							InpInpOpm[0] = (InpInpOpm[0] * 75) / 100;
+							InpInpOpm[1] = (InpInpOpm[1] * 75) / 100;
+						} else if (fm_layer_count >= 2) {
+							InpInpOpm[0] = (InpInpOpm[0] * 60) / 100;
+							InpInpOpm[1] = (InpInpOpm[1] * 60) / 100;
+						}
+					}
 						// Apply bit-shift normalization to FM output
 						InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
 										>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
@@ -1518,6 +1538,31 @@ inline void Opm::pcmset22(int ndata) {
 						}
 					}
 
+
+					// Apply auto-gain adjustment for ADPCM octave layering (prevent clipping)
+					if (g_Config.octave_auto_gain) {
+						// Count active ADPCM octave layers
+						int adpcm_layer_count = 0;
+						if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) adpcm_layer_count++;
+						if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) adpcm_layer_count++;
+						if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) adpcm_layer_count++;
+
+						// Apply gain reduction based on layer count
+						// 0 layers: 100% (no reduction)
+						// 1 layer:  75% (通常100% + レイヤー50% = 150% → 75%で112.5%)
+						// 2 layers: 65% (通常100% + レイヤー2×50% = 200% → 65%で130%)
+						// 3 layers: 55% (通常100% + レイヤー3×50% = 250% → 55%で137.5%)
+						if (adpcm_layer_count == 1) {
+							OutInpAdpcm[0] = (OutInpAdpcm[0] * 75) / 100;
+							OutInpAdpcm[1] = (OutInpAdpcm[1] * 75) / 100;
+						} else if (adpcm_layer_count == 2) {
+							OutInpAdpcm[0] = (OutInpAdpcm[0] * 65) / 100;
+							OutInpAdpcm[1] = (OutInpAdpcm[1] * 65) / 100;
+						} else if (adpcm_layer_count >= 3) {
+							OutInpAdpcm[0] = (OutInpAdpcm[0] * 55) / 100;
+							OutInpAdpcm[1] = (OutInpAdpcm[1] * 55) / 100;
+						}
+					}
 					// Add Pcm8 output PCM to OutInpAdpcm[] (panning & saturation arithmetic support)
 					{
 						int ch;

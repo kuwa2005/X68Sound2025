@@ -64,6 +64,9 @@ struct X68SoundConfig {
 
 	// ADPCM Multi-channel Mode (experimental)
 	int adpcm_multichannel_mode;    // Enable ADPCM multi-channel playback (0=OFF, 1=ON, default: 0)
+
+	// Auto-gain control for octave layering (prevent clipping)
+	int octave_auto_gain;            // Enable automatic gain adjustment (0=OFF, 1=ON, default: 1)
 };
 
 // Global configuration instance
@@ -111,7 +114,10 @@ X68SoundConfig g_Config = {
 	50,     // adpcm_octave_lower2_volume
 
 	// ADPCM Multi-channel Mode
-	0       // adpcm_multichannel_mode (experimental, default: OFF)
+	0,      // adpcm_multichannel_mode (experimental, default: OFF)
+
+	// Auto-gain control
+	1       // octave_auto_gain (default: ON to prevent clipping)
 };
 
 // Helper function to read environment variable as integer
@@ -180,6 +186,9 @@ inline void LoadConfigFromEnvironment() {
 
 	// ADPCM Multi-channel Mode
 	g_Config.adpcm_multichannel_mode = GetEnvInt("X68SOUND_ADPCM_MULTICHANNEL", 0);
+
+	// Auto-gain control
+	g_Config.octave_auto_gain = GetEnvInt("X68SOUND_OCTAVE_AUTO_GAIN", 1);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -265,6 +274,9 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.adpcm_octave_lower_volume > 100) g_Config.adpcm_octave_lower_volume = 100;
 	if (g_Config.adpcm_octave_lower2_volume < 0) g_Config.adpcm_octave_lower2_volume = 0;
 	if (g_Config.adpcm_octave_lower2_volume > 100) g_Config.adpcm_octave_lower2_volume = 100;
+
+	// Validate auto-gain control
+	g_Config.octave_auto_gain = (g_Config.octave_auto_gain != 0) ? 1 : 0;
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {
