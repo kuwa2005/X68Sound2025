@@ -118,6 +118,83 @@ set X68SOUND_DEBUG=2   :: デバッグログ有効化（0=オフ、1=基本、2=
 
 ## 最新の変更履歴
 
+### 2025/11/22 - v2.4 オクターブレイヤリング機能 & マスターボリューム
+
+#### 新機能
+* **FM/ADPCMマスターボリューム & ソフトクリッピング**: FM音源とADPCM音源の音量を個別に調整可能
+  - 環境変数 `X68SOUND_FM_MASTER_VOLUME` (0-200%、デフォルト: 100): FM音源全体の音量
+  - 環境変数 `X68SOUND_ADPCM_MASTER_VOLUME` (0-200%、デフォルト: 100): ADPCM音源全体の音量
+  - 環境変数 `X68SOUND_SOFT_CLIPPING` (0/1、デフォルト: 1): ソフトクリッピング有効化
+  - 環境変数 `X68SOUND_SOFT_CLIPPING_THRESHOLD` (50-100%、デフォルト: 85): ソフトクリッピング閾値
+  - FM音源が大きすぎる場合やADPCM音源が小さい場合のバランス調整に最適
+  - **マスターボリュームを200%に設定しても、ソフトクリッピングにより音割れを防止**
+
+* **オクターブレイヤリングモード**: FM音源・ADPCM音源パート単位で1オクターブ上下の音を重ねる機能
+  - **FM音源オクターブレイヤリング**: 真のピッチシフトによる1オクターブ上下の音生成
+    - 環境変数 `X68SOUND_FM_OCTAVE_UPPER` (0/1): FM音源+1オクターブ有効化
+    - 環境変数 `X68SOUND_FM_OCTAVE_UPPER_VOL` (0-100): +1オクターブの音量（%）
+    - 環境変数 `X68SOUND_FM_OCTAVE_LOWER` (0/1): FM音源-1オクターブ有効化
+    - 環境変数 `X68SOUND_FM_OCTAVE_LOWER_VOL` (0-100): -1オクターブの音量（%）
+  - **ADPCM音源オクターブレイヤリング**: リサンプリングによる真のピッチシフト対応
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_UPPER` (0/1): ADPCM+1オクターブ有効化
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_UPPER_VOL` (0-100): +1オクターブの音量（%）
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER` (0/1): ADPCM-1オクターブ有効化
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER_VOL` (0-100): -1オクターブの音量（%）
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER2` (0/1): ADPCM-2オクターブ有効化
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER2_VOL` (0-100): -2オクターブの音量（%）
+    - 環境変数 `X68SOUND_ADPCM_MULTICHANNEL` (0/1): マルチチャンネルモード（真のピッチシフト）
+  - すべてデフォルトOFF、環境変数で個別に制御可能
+  - FM音源は真のオクターブシフト、ADPCMは音量レイヤリング（注記参照）
+
+#### 使用例
+```batch
+REM FM/ADPCM音源のバランス調整
+set X68SOUND_FM_MASTER_VOLUME=80
+set X68SOUND_ADPCM_MASTER_VOLUME=120
+
+REM FM音源に1オクターブ上の音を50%の音量で重ねる
+set X68SOUND_FM_OCTAVE_UPPER=1
+set X68SOUND_FM_OCTAVE_UPPER_VOL=50
+
+REM FM音源に1オクターブ下の音を30%の音量で重ねる
+set X68SOUND_FM_OCTAVE_LOWER=1
+set X68SOUND_FM_OCTAVE_LOWER_VOL=30
+
+REM ADPCMに2オクターブ下の音を40%の音量で重ねる（重低音強化）
+set X68SOUND_ADPCM_OCTAVE_LOWER2=1
+set X68SOUND_ADPCM_OCTAVE_LOWER2_VOL=40
+
+REM ADPCMマルチチャンネルモード（真のピッチシフト）を有効化
+REM このモードを有効にすると、ADPCMオクターブレイヤリングが
+REM リサンプリングバッファによる真のピッチシフトで動作します
+set X68SOUND_ADPCM_MULTICHANNEL=1
+
+REM 自動ゲイン調整を無効化する場合（音割れ注意）
+REM set X68SOUND_OCTAVE_AUTO_GAIN=0
+```
+
+**効果:**
+- FM音源: より豊かで厚みのある音色（オルガン的な響き）
+- ADPCM音源: 音の存在感と迫力の向上
+- ADPCM-2オクターブ: 重低音の強化、打楽器や効果音の迫力向上
+
+**注記:**
+- FM音源: 各オペレーターのピッチを変更して真のオクターブシフトを実現
+- ADPCM音源: 2つのモードに対応
+  - **通常モード** (`X68SOUND_ADPCM_MULTICHANNEL=0`): 音量レイヤリング方式（CPU負荷低、既存のPCM8に影響なし）
+  - **マルチチャンネルモード** (`X68SOUND_ADPCM_MULTICHANNEL=1`): リサンプリングバッファによる真のピッチシフト
+    - リングバッファ方式で最大8チャンネル同時再生（通常+3オクターブレイヤー×ステレオ）
+    - 線形補間による高品質リサンプリング（+1oct=2x速度、-1oct=0.5x速度、-2oct=0.25x速度）
+    - 各オクターブレイヤーが独立した再生レートで動作
+    - PCM8チャンネルに影響を与えない独立設計
+- ADPCM-2オクターブ: -1オクターブと併用可能、重低音の補強に効果的
+- **自動ゲイン調整**: オクターブレイヤーの数に応じて自動的に音量を調整し、クリッピング（音割れ）を防止
+  - 環境変数 `X68SOUND_OCTAVE_AUTO_GAIN` (0/1、デフォルト: 1=ON)
+  - FM: 1レイヤー=75%、2レイヤー=60%に自動調整
+  - ADPCM: 1レイヤー=75%、2レイヤー=65%、3レイヤー=55%に自動調整
+  - 無効化すると音量が大きくなりますが、クリッピングのリスクがあります
+- CPU負荷: FM上下両方有効時で約30-40%増加、ADPCMマルチチャンネルモードは追加で約10-15%増加
+
 ### 2025/11/18 - v2.3 擬似ステレオ強化機能 & HPFフィルター改善
 
 #### 新機能

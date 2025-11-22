@@ -5,6 +5,39 @@
 #define	PCMBUFSIZE	65536
 //#define	DELAY	(1000/5)
 
+// Soft clipping function - prevents hard clipping with smooth saturation curve
+// Uses cubic soft clipping algorithm for smooth distortion
+inline int ApplySoftClipping(int sample, int threshold_percent) {
+	// Calculate threshold based on percentage (50-100%)
+	// Max sample value is around 32768 (16-bit)
+	const int MAX_SAMPLE = 32767;
+	int threshold = (MAX_SAMPLE * threshold_percent) / 100;
+
+	if (sample > threshold) {
+		// Soft clip positive overshoot
+		int overshoot = sample - threshold;
+		int range = MAX_SAMPLE - threshold;
+		// Cubic soft clipping: y = threshold + range * (1 - (1 - x/range)^3)
+		// Simplified: use tanh-like approximation for speed
+		int ratio = (overshoot << 8) / range;  // Fixed point 8.8
+		if (ratio > 256) ratio = 256;  // Clamp to 1.0
+		// Soft saturation curve: output = threshold + range * (ratio / (1 + ratio))
+		int soft = (ratio << 8) / (256 + ratio);  // Returns 0-256 range
+		return threshold + ((range * soft) >> 8);
+	} else if (sample < -threshold) {
+		// Soft clip negative overshoot (symmetric)
+		int overshoot = -sample - threshold;
+		int range = MAX_SAMPLE - threshold;
+		int ratio = (overshoot << 8) / range;
+		if (ratio > 256) ratio = 256;
+		int soft = (ratio << 8) / (256 + ratio);
+		return -(threshold + ((range * soft) >> 8));
+	}
+
+	// No clipping needed
+	return sample;
+}
+
 #ifdef C86CTL
 
 // c86ctl definitions
@@ -1296,34 +1329,138 @@ inline void Opm::pcmset22(int ndata) {
 							op[ch][3].Output(lfopitch[ch], lfolevel[ch]);
 						}
 						op[7][3].Output32(lfopitch[7], lfolevel[7]);
+
+						// Calculate normal FM output mix
+						InpInpOpm[0] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
+										+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
+										+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
+										+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
+										+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
+										+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
+										+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
+										+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
+						InpInpOpm[1] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
+										+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
+										+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
+										+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
+										+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
+										+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
+										+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
+										+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
+
+						// FM Octave Layering: Add upper and lower octave sounds
+						if (g_Config.fm_octave_upper_enable || g_Config.fm_octave_lower_enable) {
+							// Process upper octave (+1 octave = +12 semitones = +12*64)
+							if (g_Config.fm_octave_upper_enable && g_Config.fm_octave_upper_volume > 0) {
+								const int pitch_offset = 12 * 64;  // +1 octave
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].inp=op[ch][2].inp=op[ch][3].inp=OpOut[ch]=0;
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][0].Output0WithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][2].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<7; ++ch) {
+									op[ch][3].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								op[7][3].Output32WithPitchOffset(lfopitch[7], lfolevel[7], pitch_offset);
+
+								// Mix upper octave with volume control
+								int vol_scale = g_Config.fm_octave_upper_volume;  // 0-100%
+								int mix_L = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
+								int mix_R = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
+								InpInpOpm[0] += (mix_L * vol_scale) / 100;
+								InpInpOpm[1] += (mix_R * vol_scale) / 100;
+							}
+
+							// Process lower octave (-1 octave = -12 semitones = -12*64)
+							if (g_Config.fm_octave_lower_enable && g_Config.fm_octave_lower_volume > 0) {
+								const int pitch_offset = -12 * 64;  // -1 octave
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].inp=op[ch][2].inp=op[ch][3].inp=OpOut[ch]=0;
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][0].Output0WithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][2].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<7; ++ch) {
+									op[ch][3].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								op[7][3].Output32WithPitchOffset(lfopitch[7], lfolevel[7], pitch_offset);
+
+								// Mix lower octave with volume control
+								int vol_scale = g_Config.fm_octave_lower_volume;  // 0-100%
+								int mix_L = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
+								int mix_R = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
+								InpInpOpm[0] += (mix_L * vol_scale) / 100;
+								InpInpOpm[1] += (mix_R * vol_scale) / 100;
+							}
+						}
+
+
+					// Apply auto-gain adjustment for FM octave layering (prevent clipping)
+					if (g_Config.octave_auto_gain) {
+						// Count active FM octave layers
+						int fm_layer_count = 0;
+						if (g_Config.fm_octave_upper_enable && g_Config.fm_octave_upper_volume > 0) fm_layer_count++;
+						if (g_Config.fm_octave_lower_enable && g_Config.fm_octave_lower_volume > 0) fm_layer_count++;
+
+						// Apply gain reduction based on layer count
+						// 0 layers: 100% (no reduction)
+						// 1 layer:  75% (通常100% + レイヤー50% = 150% → 75%で112.5%)
+						// 2 layers: 60% (通常100% + レイヤー2×50% = 200% → 60%で120%)
+						if (fm_layer_count == 1) {
+							InpInpOpm[0] = (InpInpOpm[0] * 75) / 100;
+							InpInpOpm[1] = (InpInpOpm[1] * 75) / 100;
+						} else if (fm_layer_count >= 2) {
+							InpInpOpm[0] = (InpInpOpm[0] * 60) / 100;
+							InpInpOpm[1] = (InpInpOpm[1] * 60) / 100;
+						}
 					}
-
-
-
-				InpInpOpm[0] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
-								+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
-								+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
-								+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
-								+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
-								+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
-								+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
-								+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
-				InpInpOpm[1] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
-								+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
-								+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
-								+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
-								+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
-								+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
-								+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
-								+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
-
-				{
-
-					InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
-									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
-					InpInpOpm[1] = (InpInpOpm[1]&(int)0xFFFFFC00)
-									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
-				}
+						// Apply bit-shift normalization to FM output
+						InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
+										>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
+						InpInpOpm[1] = (InpInpOpm[1]&(int)0xFFFFFC00)
+										>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
+					}
 #if 0
 				InpInpOpm[0] += (InpInpOpm[0]<<4)+InpInpOpm[0];	// * 18
 				InpInpOpm[1] += (InpInpOpm[1]<<4)+InpInpOpm[1];	// * 18
@@ -1349,6 +1486,36 @@ inline void Opm::pcmset22(int ndata) {
 			OutOpm[0] = (InpOpm[0]*TotalVolume) >> 8;
 			OutOpm[1] = (InpOpm[1]*TotalVolume) >> 8;
 
+			// Apply FM master volume control
+			OutOpm[0] = (OutOpm[0] * g_Config.fm_master_volume) / 100;
+			OutOpm[1] = (OutOpm[1] * g_Config.fm_master_volume) / 100;
+
+			// Apply soft clipping to FM output to prevent distortion when FM master volume is high
+			// This prevents FM from clipping before being mixed with ADPCM output
+			// We scale down, apply soft clipping, then scale back up.
+			if (g_Config.soft_clipping_enable) {
+				const int FM_SCALE_SHIFT = 5;  // >>5 is applied at mixing stage
+
+				// Calculate effective threshold based on FM master volume
+				// When master volume is high (>120%), reduce threshold proportionally
+				int effective_threshold = g_Config.soft_clipping_threshold;
+				if (g_Config.fm_master_volume > 120) {
+					effective_threshold = (g_Config.soft_clipping_threshold * 100) / g_Config.fm_master_volume;
+					if (effective_threshold < 50) effective_threshold = 50;  // Minimum 50%
+				}
+
+				// Process left channel: scale down, clip, scale back up
+				// Note: OutOpm[] is negated when added to Out[] (line: Out[] -= OutOpm[] >> 5)
+				int fm_L_output = -(OutOpm[0] >> FM_SCALE_SHIFT);  // Actual output value
+				fm_L_output = ApplySoftClipping(fm_L_output, effective_threshold);
+				OutOpm[0] = -(fm_L_output << FM_SCALE_SHIFT);  // Scale back
+
+				// Process right channel
+				int fm_R_output = -(OutOpm[1] >> FM_SCALE_SHIFT);
+				fm_R_output = ApplySoftClipping(fm_R_output, effective_threshold);
+				OutOpm[1] = -(fm_R_output << FM_SCALE_SHIFT);
+			}
+
 			Out[0] -= OutOpm[0]>>(5);
 			Out[1] -= OutOpm[1]>>(5);
 		}  // UseOpmFlags == 1
@@ -1368,11 +1535,97 @@ inline void Opm::pcmset22(int ndata) {
 						o = adpcm.GetPcm();
 						if (!(OpmChMask & 0x100))
 						if (o != 0x80000000) {
-							OutInpAdpcm[0] += ((((int)(PpiReg)>>1)&1)-1) & o;
-							OutInpAdpcm[1] += (((int)(PpiReg)&1)-1) & o;
+							int adpcm_L = ((((int)(PpiReg)>>1)&1)-1) & o;
+							int adpcm_R = (((int)(PpiReg)&1)-1) & o;
+
+							// Add normal ADPCM output
+							OutInpAdpcm[0] += adpcm_L;
+							OutInpAdpcm[1] += adpcm_R;
+
+							// ADPCM Octave Layering: Multi-channel resampling mode or simple volume layering
+							if (g_Config.adpcm_multichannel_mode) {
+								// Multi-channel mode: Read from ring buffer with resampling for true pitch shifting
+								// This provides up to 8 independent channels (1 normal + 3 octave layers × 2 stereo)
+
+								// Rate increments (16.16 fixed point): 2x=+1oct, 1x=normal, 0.5x=-1oct, 0.25x=-2oct
+								const int RATE_2X = 0x20000;   // +1 octave (2x speed)
+								const int RATE_1X = 0x10000;   // normal (1x speed)
+								const int RATE_HALF = 0x08000; // -1 octave (0.5x speed)
+								const int RATE_QUARTER = 0x04000; // -2 octave (0.25x speed)
+
+								// Read +1 octave layer (2x speed = higher pitch)
+								if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) {
+									int sample = adpcm.ReadFromRingBuffer(0, RATE_2X);
+									int layer_L = ((((int)(PpiReg)>>1)&1)-1) & sample;
+									int layer_R = (((int)(PpiReg)&1)-1) & sample;
+									OutInpAdpcm[0] += (layer_L * g_Config.adpcm_octave_upper_volume) / 100;
+									OutInpAdpcm[1] += (layer_R * g_Config.adpcm_octave_upper_volume) / 100;
+								}
+
+								// Note: Normal playback is already added above (lines 1459-1460)
+								// We don't need to read from ring buffer for normal pitch
+
+								// Read -1 octave layer (0.5x speed = lower pitch)
+								if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) {
+									int sample = adpcm.ReadFromRingBuffer(2, RATE_HALF);
+									int layer_L = ((((int)(PpiReg)>>1)&1)-1) & sample;
+									int layer_R = (((int)(PpiReg)&1)-1) & sample;
+									OutInpAdpcm[0] += (layer_L * g_Config.adpcm_octave_lower_volume) / 100;
+									OutInpAdpcm[1] += (layer_R * g_Config.adpcm_octave_lower_volume) / 100;
+								}
+
+								// Read -2 octave layer (0.25x speed = much lower pitch)
+								if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) {
+									int sample = adpcm.ReadFromRingBuffer(3, RATE_QUARTER);
+									int layer_L = ((((int)(PpiReg)>>1)&1)-1) & sample;
+									int layer_R = (((int)(PpiReg)&1)-1) & sample;
+									OutInpAdpcm[0] += (layer_L * g_Config.adpcm_octave_lower2_volume) / 100;
+									OutInpAdpcm[1] += (layer_R * g_Config.adpcm_octave_lower2_volume) / 100;
+								}
+							} else {
+								// Simple volume layering mode (legacy - not true pitch shifting)
+								// Note: This is not true pitch shifting, but adds thickness to the sound
+								if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) {
+									OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_upper_volume) / 100;
+									OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_upper_volume) / 100;
+								}
+								if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) {
+									OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower_volume) / 100;
+									OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower_volume) / 100;
+								}
+								if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) {
+									OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower2_volume) / 100;
+									OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower2_volume) / 100;
+								}
+							}
 						}
 					}
 
+
+					// Apply auto-gain adjustment for ADPCM octave layering (prevent clipping)
+					if (g_Config.octave_auto_gain) {
+						// Count active ADPCM octave layers
+						int adpcm_layer_count = 0;
+						if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) adpcm_layer_count++;
+						if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) adpcm_layer_count++;
+						if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) adpcm_layer_count++;
+
+						// Apply gain reduction based on layer count
+						// 0 layers: 100% (no reduction)
+						// 1 layer:  75% (通常100% + レイヤー50% = 150% → 75%で112.5%)
+						// 2 layers: 65% (通常100% + レイヤー2×50% = 200% → 65%で130%)
+						// 3 layers: 55% (通常100% + レイヤー3×50% = 250% → 55%で137.5%)
+						if (adpcm_layer_count == 1) {
+							OutInpAdpcm[0] = (OutInpAdpcm[0] * 75) / 100;
+							OutInpAdpcm[1] = (OutInpAdpcm[1] * 75) / 100;
+						} else if (adpcm_layer_count == 2) {
+							OutInpAdpcm[0] = (OutInpAdpcm[0] * 65) / 100;
+							OutInpAdpcm[1] = (OutInpAdpcm[1] * 65) / 100;
+						} else if (adpcm_layer_count >= 3) {
+							OutInpAdpcm[0] = (OutInpAdpcm[0] * 55) / 100;
+							OutInpAdpcm[1] = (OutInpAdpcm[1] * 55) / 100;
+						}
+					}
 					// Add Pcm8 output PCM to OutInpAdpcm[] (panning & saturation arithmetic support)
 					{
 						int ch;
@@ -1398,6 +1651,27 @@ inline void Opm::pcmset22(int ndata) {
 //					OutInpAdpcm[0] = (OutInpAdpcm[0]*TotalVolume) >> 8;
 //					OutInpAdpcm[1] = (OutInpAdpcm[1]*TotalVolume) >> 8;
 
+
+					// Apply soft clipping before *40 amplification to prevent overflow
+					// OutInpAdpcm[] contains the sum of all ADPCM+PCM8 layers before amplification
+					// With octave layering at 100% volume each, this can be very large
+					// We apply soft clipping to limit the pre-amplification signal
+					if (g_Config.soft_clipping_enable) {
+						// Scale down to ±32767 range for soft clipping, then scale back
+						// Typical range before layers: ±32768 per source
+						// With 3 layers at 100%: ±98304, after auto-gain 65%: ±63897
+						// Target: keep within reasonable range before *40 amplification
+						// PRE_AMP_SCALE=5 (>>5 = divide by 32) handles extreme cases like:
+						// - Multiple octave layers at 100% each
+						// - ADPCM master volume at 200%
+						const int PRE_AMP_SCALE = 5;  // Scale factor for pre-amplification clipping (increased from 4)
+						int scaled_L = OutInpAdpcm[0] >> PRE_AMP_SCALE;
+						int scaled_R = OutInpAdpcm[1] >> PRE_AMP_SCALE;
+						scaled_L = ApplySoftClipping(scaled_L, g_Config.soft_clipping_threshold);
+						scaled_R = ApplySoftClipping(scaled_R, g_Config.soft_clipping_threshold);
+						OutInpAdpcm[0] = scaled_L << PRE_AMP_SCALE;
+						OutInpAdpcm[1] = scaled_R << PRE_AMP_SCALE;
+					}
 
 					#define	PCM_LIMITS	((1<<19)-1)
 					if ((unsigned int)(OutInpAdpcm[0]+PCM_LIMITS) > (unsigned int)(PCM_LIMITS*2)) {
@@ -1434,6 +1708,40 @@ inline void Opm::pcmset22(int ndata) {
 				OutOutAdpcm_prev[0] = OutOutAdpcm[0];
 				OutOutAdpcm_prev[1] = OutOutAdpcm[1];
 
+			// Apply ADPCM master volume control
+			OutOutAdpcm[0] = (OutOutAdpcm[0] * g_Config.adpcm_master_volume) / 100;
+			OutOutAdpcm[1] = (OutOutAdpcm[1] * g_Config.adpcm_master_volume) / 100;
+
+			// Apply soft clipping to ADPCM output to prevent distortion when ADPCM master volume is high
+			// This prevents ADPCM from clipping before being mixed with FM output
+			// Note: OutOutAdpcm[] values are very large due to *40 amplification (line 1659-1660)
+			// and IIR filter processing. After >>4 shift (at line ~1733), values should be in ±32767 range.
+			// We scale down, apply soft clipping, then scale back up.
+			if (g_Config.soft_clipping_enable) {
+				const int ADPCM_SCALE_SHIFT = 4;  // >>4 is applied at mixing stage
+
+				// Calculate effective threshold based on ADPCM master volume
+				// When master volume is high (>120%), reduce threshold proportionally
+				// This prevents clipping even with extreme settings like 200% master volume
+				int effective_threshold = g_Config.soft_clipping_threshold;
+				if (g_Config.adpcm_master_volume > 120) {
+					// Scale down threshold: 200% master vol → ~42% threshold (85 * 100 / 200)
+					effective_threshold = (g_Config.soft_clipping_threshold * 100) / g_Config.adpcm_master_volume;
+					if (effective_threshold < 50) effective_threshold = 50;  // Minimum 50%
+				}
+
+				// Process left channel: scale down, clip, scale back up
+				// Note: OutOutAdpcm[] is negated when added to Out[] (line: Out[] -= OutOutAdpcm[] >> 4)
+				int adpcm_L_output = -(OutOutAdpcm[0] >> ADPCM_SCALE_SHIFT);  // Actual output value
+				adpcm_L_output = ApplySoftClipping(adpcm_L_output, effective_threshold);
+				OutOutAdpcm[0] = -(adpcm_L_output << ADPCM_SCALE_SHIFT);  // Scale back
+
+				// Process right channel
+				int adpcm_R_output = -(OutOutAdpcm[1] >> ADPCM_SCALE_SHIFT);
+				adpcm_R_output = ApplySoftClipping(adpcm_R_output, effective_threshold);
+				OutOutAdpcm[1] = -(adpcm_R_output << ADPCM_SCALE_SHIFT);
+			}
+
 
 
 
@@ -1446,6 +1754,12 @@ inline void Opm::pcmset22(int ndata) {
 //		Out[0] = (Out[0]*TotalVolume) >> 8;
 //		Out[1] = (Out[1]*TotalVolume) >> 8;
 
+
+		// Apply soft clipping to prevent distortion when master volume is high
+		if (g_Config.soft_clipping_enable) {
+			Out[0] = ApplySoftClipping(Out[0], g_Config.soft_clipping_threshold);
+			Out[1] = ApplySoftClipping(Out[1], g_Config.soft_clipping_threshold);
+		}
 
 
 		if (WaveFunc != NULL) {

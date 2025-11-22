@@ -49,6 +49,32 @@ struct X68SoundConfig {
 	int reverb_decay;             // Reverb decay time (10-95%, default: 70)
 	int reverb_mix;               // Reverb wet/dry mix (0-50%, default: 20)
 	int compressor_level;         // Multiband compressor (0=OFF, 1=Gentle, 2=Medium, 3=Strong, default: 0)
+
+	// Octave Layering Configuration
+	int fm_octave_upper_enable;   // Enable +1 octave layering for FM (0=OFF, 1=ON, default: 0)
+	int fm_octave_upper_volume;   // Volume percentage for +1 octave FM (0-100%, default: 50)
+	int fm_octave_lower_enable;   // Enable -1 octave layering for FM (0=OFF, 1=ON, default: 0)
+	int fm_octave_lower_volume;   // Volume percentage for -1 octave FM (0-100%, default: 50)
+	int adpcm_octave_upper_enable; // Enable +1 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
+	int adpcm_octave_upper_volume; // Volume percentage for +1 octave ADPCM (0-100%, default: 50)
+	int adpcm_octave_lower_enable; // Enable -1 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
+	int adpcm_octave_lower_volume; // Volume percentage for -1 octave ADPCM (0-100%, default: 50)
+	int adpcm_octave_lower2_enable; // Enable -2 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
+	int adpcm_octave_lower2_volume; // Volume percentage for -2 octave ADPCM (0-100%, default: 50)
+
+	// ADPCM Multi-channel Mode (experimental)
+	int adpcm_multichannel_mode;    // Enable ADPCM multi-channel playback (0=OFF, 1=ON, default: 0)
+
+	// Auto-gain control for octave layering (prevent clipping)
+	int octave_auto_gain;            // Enable automatic gain adjustment (0=OFF, 1=ON, default: 1)
+
+	// Master volume controls (independent adjustment for FM and ADPCM)
+	int fm_master_volume;            // FM master volume (0-200%, default: 100)
+	int adpcm_master_volume;         // ADPCM master volume (0-200%, default: 100)
+
+	// Soft clipping/limiter (prevent clipping when master volume is high)
+	int soft_clipping_enable;        // Enable soft clipping (0=OFF, 1=ON, default: 1)
+	int soft_clipping_threshold;     // Soft clipping threshold (50-100%, default: 85)
 };
 
 // Global configuration instance
@@ -81,7 +107,33 @@ X68SoundConfig g_Config = {
 	0,      // reverb_type
 	70,     // reverb_decay
 	20,     // reverb_mix
-	0       // compressor_level
+	0,      // compressor_level
+
+	// Octave Layering (all OFF by default)
+	0,      // fm_octave_upper_enable
+	50,     // fm_octave_upper_volume
+	0,      // fm_octave_lower_enable
+	50,     // fm_octave_lower_volume
+	0,      // adpcm_octave_upper_enable
+	50,     // adpcm_octave_upper_volume
+	0,      // adpcm_octave_lower_enable
+	50,     // adpcm_octave_lower_volume
+	0,      // adpcm_octave_lower2_enable
+	50,     // adpcm_octave_lower2_volume
+
+	// ADPCM Multi-channel Mode
+	0,      // adpcm_multichannel_mode (experimental, default: OFF)
+
+	// Auto-gain control
+	1,      // octave_auto_gain (default: ON to prevent clipping)
+
+	// Master volume
+	100,    // fm_master_volume (default: 100%)
+	100,    // adpcm_master_volume (default: 100%)
+
+	// Soft clipping
+	1,      // soft_clipping_enable (default: ON to prevent clipping)
+	85      // soft_clipping_threshold (default: 85%)
 };
 
 // Helper function to read environment variable as integer
@@ -135,6 +187,32 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.reverb_decay = GetEnvInt("X68SOUND_REVERB_DECAY", 70);
 	g_Config.reverb_mix = GetEnvInt("X68SOUND_REVERB_MIX", 20);
 	g_Config.compressor_level = GetEnvInt("X68SOUND_COMPRESSOR", 0);
+
+	// Octave Layering Configuration
+	g_Config.fm_octave_upper_enable = GetEnvInt("X68SOUND_FM_OCTAVE_UPPER", 0);
+	g_Config.fm_octave_upper_volume = GetEnvInt("X68SOUND_FM_OCTAVE_UPPER_VOL", 50);
+	g_Config.fm_octave_lower_enable = GetEnvInt("X68SOUND_FM_OCTAVE_LOWER", 0);
+	g_Config.fm_octave_lower_volume = GetEnvInt("X68SOUND_FM_OCTAVE_LOWER_VOL", 50);
+	g_Config.adpcm_octave_upper_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_UPPER", 0);
+	g_Config.adpcm_octave_upper_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_UPPER_VOL", 50);
+	g_Config.adpcm_octave_lower_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER", 0);
+	g_Config.adpcm_octave_lower_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER_VOL", 50);
+	g_Config.adpcm_octave_lower2_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER2", 0);
+	g_Config.adpcm_octave_lower2_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER2_VOL", 50);
+
+	// ADPCM Multi-channel Mode
+	g_Config.adpcm_multichannel_mode = GetEnvInt("X68SOUND_ADPCM_MULTICHANNEL", 0);
+
+	// Auto-gain control
+	g_Config.octave_auto_gain = GetEnvInt("X68SOUND_OCTAVE_AUTO_GAIN", 1);
+
+	// Master volume controls
+	g_Config.fm_master_volume = GetEnvInt("X68SOUND_FM_MASTER_VOLUME", 100);
+	g_Config.adpcm_master_volume = GetEnvInt("X68SOUND_ADPCM_MASTER_VOLUME", 100);
+
+	// Soft clipping
+	g_Config.soft_clipping_enable = GetEnvInt("X68SOUND_SOFT_CLIPPING", 1);
+	g_Config.soft_clipping_threshold = GetEnvInt("X68SOUND_SOFT_CLIPPING_THRESHOLD", 85);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -203,6 +281,37 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.reverb_mix > 50) g_Config.reverb_mix = 50;
 	if (g_Config.compressor_level < 0) g_Config.compressor_level = 0;
 	if (g_Config.compressor_level > 3) g_Config.compressor_level = 3;
+
+	// Validate octave layering parameters
+	g_Config.fm_octave_upper_enable = (g_Config.fm_octave_upper_enable != 0) ? 1 : 0;
+	g_Config.fm_octave_lower_enable = (g_Config.fm_octave_lower_enable != 0) ? 1 : 0;
+	g_Config.adpcm_octave_upper_enable = (g_Config.adpcm_octave_upper_enable != 0) ? 1 : 0;
+	g_Config.adpcm_octave_lower_enable = (g_Config.adpcm_octave_lower_enable != 0) ? 1 : 0;
+	g_Config.adpcm_octave_lower2_enable = (g_Config.adpcm_octave_lower2_enable != 0) ? 1 : 0;
+	if (g_Config.fm_octave_upper_volume < 0) g_Config.fm_octave_upper_volume = 0;
+	if (g_Config.fm_octave_upper_volume > 100) g_Config.fm_octave_upper_volume = 100;
+	if (g_Config.fm_octave_lower_volume < 0) g_Config.fm_octave_lower_volume = 0;
+	if (g_Config.fm_octave_lower_volume > 100) g_Config.fm_octave_lower_volume = 100;
+	if (g_Config.adpcm_octave_upper_volume < 0) g_Config.adpcm_octave_upper_volume = 0;
+	if (g_Config.adpcm_octave_upper_volume > 100) g_Config.adpcm_octave_upper_volume = 100;
+	if (g_Config.adpcm_octave_lower_volume < 0) g_Config.adpcm_octave_lower_volume = 0;
+	if (g_Config.adpcm_octave_lower_volume > 100) g_Config.adpcm_octave_lower_volume = 100;
+	if (g_Config.adpcm_octave_lower2_volume < 0) g_Config.adpcm_octave_lower2_volume = 0;
+	if (g_Config.adpcm_octave_lower2_volume > 100) g_Config.adpcm_octave_lower2_volume = 100;
+
+	// Validate auto-gain control
+	g_Config.octave_auto_gain = (g_Config.octave_auto_gain != 0) ? 1 : 0;
+
+	// Validate master volume controls
+	if (g_Config.fm_master_volume < 0) g_Config.fm_master_volume = 0;
+	if (g_Config.fm_master_volume > 200) g_Config.fm_master_volume = 200;
+	if (g_Config.adpcm_master_volume < 0) g_Config.adpcm_master_volume = 0;
+	if (g_Config.adpcm_master_volume > 200) g_Config.adpcm_master_volume = 200;
+
+	// Validate soft clipping
+	g_Config.soft_clipping_enable = (g_Config.soft_clipping_enable != 0) ? 1 : 0;
+	if (g_Config.soft_clipping_threshold < 50) g_Config.soft_clipping_threshold = 50;
+	if (g_Config.soft_clipping_threshold > 100) g_Config.soft_clipping_threshold = 100;
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {

@@ -12,12 +12,23 @@ class Adpcm {
 	int SaturationCounter62_1;	// Counter for GetPcm62 first stage
 	int SaturationCounter62_2;	// Counter for GetPcm62 second stage
 
+	// Ring buffer for multi-channel ADPCM playback (octave layering with true pitch shift)
+	static const int ADPCM_RINGBUF_SIZE = 8192;  // Must be power of 2 for efficient wrapping
+	int RingBuffer[ADPCM_RINGBUF_SIZE];          // Stores decoded PCM samples
+	int RingBufWritePos;                         // Write position (sample count)
+	int RingBufReadPos[4];                       // Read positions for each layer (0=+1oct, 1=normal, 2=-1oct, 3=-2oct)
+	int RingBufRateFrac[4];                      // Fractional position counters (16.16 fixed point)
+
 	inline void adpcm2pcm(unsigned char adpcm);
 	inline void adpcm2pcm_msm6258(unsigned char adpcm);
 
 public:
 	void (CALLBACK *IntProc)();	// Interrupt address
 	void (CALLBACK *ErrIntProc)();	// Error interrupt address
+
+	// Ring buffer helper methods for multi-channel mode (public for opm.h access)
+	inline void WriteToRingBuffer(int sample);
+	inline int ReadFromRingBuffer(int layer, int rateIncrement);
 
 
 
@@ -114,6 +125,17 @@ inline void Adpcm::Init() {
 		}
 	}
 	FinishCounter = 3;
+
+	// Initialize ring buffer for multi-channel mode
+	RingBufWritePos = 0;
+	for (int i = 0; i < 4; ++i) {
+		RingBufReadPos[i] = 0;
+		RingBufRateFrac[i] = 0;
+	}
+	for (int i = 0; i < ADPCM_RINGBUF_SIZE; ++i) {
+		RingBuffer[i] = 0;
+	}
+
 	DebugLog(1, "[Adpcm::Init] AdpcmReg=0x%02X, AdpcmRate=%d\n", AdpcmReg, AdpcmRate);
 }
 inline void Adpcm::InitSamprate() {
@@ -139,6 +161,13 @@ inline void Adpcm::Reset() {
 	SaturationCounter = 0;
 	SaturationCounter62_1 = 0;
 	SaturationCounter62_2 = 0;
+
+	// Reset ring buffer for multi-channel mode
+	RingBufWritePos = 0;
+	for (int i = 0; i < 4; ++i) {
+		RingBufReadPos[i] = 0;
+		RingBufRateFrac[i] = 0;
+	}
 
 }
 
@@ -518,6 +547,11 @@ inline int Adpcm::GetPcm() {
 	// Save actual decoded value for HPF filter (before interpolation)
 	int InpPcm_for_hpf = InpPcm;
 
+	// Write to ring buffer for multi-channel mode (write before interpolation/filtering)
+	if (g_Config.adpcm_multichannel_mode && needNewSample) {
+		WriteToRingBuffer(InpPcm_for_hpf);
+	}
+
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
@@ -621,6 +655,11 @@ inline int Adpcm::GetPcm62() {
 	// Save actual decoded value for HPF filter (before interpolation)
 	int InpPcm_for_hpf = InpPcm;
 
+	// Write to ring buffer for multi-channel mode (write before interpolation/filtering)
+	if (g_Config.adpcm_multichannel_mode && needNewSample) {
+		WriteToRingBuffer(InpPcm_for_hpf);
+	}
+
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
 	if (g_Config.linear_interpolation && needNewSample) {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
@@ -697,5 +736,45 @@ inline int Adpcm::GetPcm62() {
 	}
 
 	return result;
+}
+
+// Write decoded PCM sample to ring buffer for multi-channel playback
+inline void Adpcm::WriteToRingBuffer(int sample) {
+	RingBuffer[RingBufWritePos & (ADPCM_RINGBUF_SIZE - 1)] = sample;
+	RingBufWritePos++;
+}
+
+// Read from ring buffer with resampling for octave layering
+// layer: 0=+1oct (2x speed), 1=normal (1x speed), 2=-1oct (0.5x speed), 3=-2oct (0.25x speed)
+// rateIncrement: Fixed point 16.16 increment per sample (0x20000=2.0, 0x10000=1.0, 0x08000=0.5, 0x04000=0.25)
+inline int Adpcm::ReadFromRingBuffer(int layer, int rateIncrement) {
+	// Check if we have enough data in the buffer
+	int available = RingBufWritePos - RingBufReadPos[layer];
+	if (available < 2) {
+		// Not enough data for interpolation, return silence
+		return 0;
+	}
+
+	// Get integer and fractional parts of read position
+	int readPos = RingBufReadPos[layer];
+	int frac = RingBufRateFrac[layer];
+
+	// Linear interpolation between two samples
+	int sample1 = RingBuffer[readPos & (ADPCM_RINGBUF_SIZE - 1)];
+	int sample2 = RingBuffer[(readPos + 1) & (ADPCM_RINGBUF_SIZE - 1)];
+	int interpolated = sample1 + (((sample2 - sample1) * frac) >> 16);
+
+	// Advance fractional position
+	frac += rateIncrement;
+	while (frac >= 0x10000) {
+		frac -= 0x10000;
+		readPos++;
+	}
+
+	// Update position
+	RingBufReadPos[layer] = readPos;
+	RingBufRateFrac[layer] = frac;
+
+	return interpolated;
 }
 
