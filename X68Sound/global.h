@@ -67,6 +67,10 @@ struct X68SoundConfig {
 
 	// Auto-gain control for octave layering (prevent clipping)
 	int octave_auto_gain;            // Enable automatic gain adjustment (0=OFF, 1=ON, default: 1)
+
+	// Master volume controls (independent adjustment for FM and ADPCM)
+	int fm_master_volume;            // FM master volume (0-200%, default: 100)
+	int adpcm_master_volume;         // ADPCM master volume (0-200%, default: 100)
 };
 
 // Global configuration instance
@@ -117,7 +121,11 @@ X68SoundConfig g_Config = {
 	0,      // adpcm_multichannel_mode (experimental, default: OFF)
 
 	// Auto-gain control
-	1       // octave_auto_gain (default: ON to prevent clipping)
+	1,      // octave_auto_gain (default: ON to prevent clipping)
+
+	// Master volume
+	100,    // fm_master_volume (default: 100%)
+	100     // adpcm_master_volume (default: 100%)
 };
 
 // Helper function to read environment variable as integer
@@ -189,6 +197,10 @@ inline void LoadConfigFromEnvironment() {
 
 	// Auto-gain control
 	g_Config.octave_auto_gain = GetEnvInt("X68SOUND_OCTAVE_AUTO_GAIN", 1);
+
+	// Master volume controls
+	g_Config.fm_master_volume = GetEnvInt("X68SOUND_FM_MASTER_VOLUME", 100);
+	g_Config.adpcm_master_volume = GetEnvInt("X68SOUND_ADPCM_MASTER_VOLUME", 100);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -277,6 +289,12 @@ inline void LoadConfigFromEnvironment() {
 
 	// Validate auto-gain control
 	g_Config.octave_auto_gain = (g_Config.octave_auto_gain != 0) ? 1 : 0;
+
+	// Validate master volume controls
+	if (g_Config.fm_master_volume < 0) g_Config.fm_master_volume = 0;
+	if (g_Config.fm_master_volume > 200) g_Config.fm_master_volume = 200;
+	if (g_Config.adpcm_master_volume < 0) g_Config.adpcm_master_volume = 0;
+	if (g_Config.adpcm_master_volume > 200) g_Config.adpcm_master_volume = 200;
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {

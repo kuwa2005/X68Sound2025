@@ -1453,6 +1453,10 @@ inline void Opm::pcmset22(int ndata) {
 			OutOpm[0] = (InpOpm[0]*TotalVolume) >> 8;
 			OutOpm[1] = (InpOpm[1]*TotalVolume) >> 8;
 
+			// Apply FM master volume control
+			OutOpm[0] = (OutOpm[0] * g_Config.fm_master_volume) / 100;
+			OutOpm[1] = (OutOpm[1] * g_Config.fm_master_volume) / 100;
+
 			Out[0] -= OutOpm[0]>>(5);
 			Out[1] -= OutOpm[1]>>(5);
 		}  // UseOpmFlags == 1
@@ -1623,6 +1627,10 @@ inline void Opm::pcmset22(int ndata) {
 				OutOutAdpcm_prev2[1] = OutOutAdpcm_prev[1];
 				OutOutAdpcm_prev[0] = OutOutAdpcm[0];
 				OutOutAdpcm_prev[1] = OutOutAdpcm[1];
+
+			// Apply ADPCM master volume control
+			OutOutAdpcm[0] = (OutOutAdpcm[0] * g_Config.adpcm_master_volume) / 100;
+			OutOutAdpcm[1] = (OutOutAdpcm[1] * g_Config.adpcm_master_volume) / 100;
 
 
 

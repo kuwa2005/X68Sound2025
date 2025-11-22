@@ -118,9 +118,14 @@ set X68SOUND_DEBUG=2   :: デバッグログ有効化（0=オフ、1=基本、2=
 
 ## 最新の変更履歴
 
-### 2025/11/22 - v2.4 オクターブレイヤリング機能
+### 2025/11/22 - v2.4 オクターブレイヤリング機能 & マスターボリューム
 
 #### 新機能
+* **FM/ADPCMマスターボリューム**: FM音源とADPCM音源の音量を個別に調整可能
+  - 環境変数 `X68SOUND_FM_MASTER_VOLUME` (0-200%、デフォルト: 100): FM音源全体の音量
+  - 環境変数 `X68SOUND_ADPCM_MASTER_VOLUME` (0-200%、デフォルト: 100): ADPCM音源全体の音量
+  - FM音源が大きすぎる場合やADPCM音源が小さい場合のバランス調整に最適
+
 * **オクターブレイヤリングモード**: FM音源・ADPCM音源パート単位で1オクターブ上下の音を重ねる機能
   - **FM音源オクターブレイヤリング**: 真のピッチシフトによる1オクターブ上下の音生成
     - 環境変数 `X68SOUND_FM_OCTAVE_UPPER` (0/1): FM音源+1オクターブ有効化
@@ -140,6 +145,10 @@ set X68SOUND_DEBUG=2   :: デバッグログ有効化（0=オフ、1=基本、2=
 
 #### 使用例
 ```batch
+REM FM/ADPCM音源のバランス調整
+set X68SOUND_FM_MASTER_VOLUME=80
+set X68SOUND_ADPCM_MASTER_VOLUME=120
+
 REM FM音源に1オクターブ上の音を50%の音量で重ねる
 set X68SOUND_FM_OCTAVE_UPPER=1
 set X68SOUND_FM_OCTAVE_UPPER_VOL=50
