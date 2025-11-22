@@ -1459,20 +1459,61 @@ inline void Opm::pcmset22(int ndata) {
 							OutInpAdpcm[0] += adpcm_L;
 							OutInpAdpcm[1] += adpcm_R;
 
-							// ADPCM Octave Layering: Add volume-scaled duplicates
-							// Note: This is not true pitch shifting, but adds thickness to the sound
-							// True octave pitch shifting would require complex resampling
-							if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) {
-								OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_upper_volume) / 100;
-								OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_upper_volume) / 100;
-							}
-							if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) {
-								OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower_volume) / 100;
-								OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower_volume) / 100;
-							}
-							if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) {
-								OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower2_volume) / 100;
-								OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower2_volume) / 100;
+							// ADPCM Octave Layering: Multi-channel resampling mode or simple volume layering
+							if (g_Config.adpcm_multichannel_mode) {
+								// Multi-channel mode: Read from ring buffer with resampling for true pitch shifting
+								// This provides up to 8 independent channels (1 normal + 3 octave layers × 2 stereo)
+
+								// Rate increments (16.16 fixed point): 2x=+1oct, 1x=normal, 0.5x=-1oct, 0.25x=-2oct
+								const int RATE_2X = 0x20000;   // +1 octave (2x speed)
+								const int RATE_1X = 0x10000;   // normal (1x speed)
+								const int RATE_HALF = 0x08000; // -1 octave (0.5x speed)
+								const int RATE_QUARTER = 0x04000; // -2 octave (0.25x speed)
+
+								// Read +1 octave layer (2x speed = higher pitch)
+								if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) {
+									int sample = adpcm.ReadFromRingBuffer(0, RATE_2X);
+									int layer_L = ((((int)(PpiReg)>>1)&1)-1) & sample;
+									int layer_R = (((int)(PpiReg)&1)-1) & sample;
+									OutInpAdpcm[0] += (layer_L * g_Config.adpcm_octave_upper_volume) / 100;
+									OutInpAdpcm[1] += (layer_R * g_Config.adpcm_octave_upper_volume) / 100;
+								}
+
+								// Note: Normal playback is already added above (lines 1459-1460)
+								// We don't need to read from ring buffer for normal pitch
+
+								// Read -1 octave layer (0.5x speed = lower pitch)
+								if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) {
+									int sample = adpcm.ReadFromRingBuffer(2, RATE_HALF);
+									int layer_L = ((((int)(PpiReg)>>1)&1)-1) & sample;
+									int layer_R = (((int)(PpiReg)&1)-1) & sample;
+									OutInpAdpcm[0] += (layer_L * g_Config.adpcm_octave_lower_volume) / 100;
+									OutInpAdpcm[1] += (layer_R * g_Config.adpcm_octave_lower_volume) / 100;
+								}
+
+								// Read -2 octave layer (0.25x speed = much lower pitch)
+								if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) {
+									int sample = adpcm.ReadFromRingBuffer(3, RATE_QUARTER);
+									int layer_L = ((((int)(PpiReg)>>1)&1)-1) & sample;
+									int layer_R = (((int)(PpiReg)&1)-1) & sample;
+									OutInpAdpcm[0] += (layer_L * g_Config.adpcm_octave_lower2_volume) / 100;
+									OutInpAdpcm[1] += (layer_R * g_Config.adpcm_octave_lower2_volume) / 100;
+								}
+							} else {
+								// Simple volume layering mode (legacy - not true pitch shifting)
+								// Note: This is not true pitch shifting, but adds thickness to the sound
+								if (g_Config.adpcm_octave_upper_enable && g_Config.adpcm_octave_upper_volume > 0) {
+									OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_upper_volume) / 100;
+									OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_upper_volume) / 100;
+								}
+								if (g_Config.adpcm_octave_lower_enable && g_Config.adpcm_octave_lower_volume > 0) {
+									OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower_volume) / 100;
+									OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower_volume) / 100;
+								}
+								if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) {
+									OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower2_volume) / 100;
+									OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower2_volume) / 100;
+								}
 							}
 						}
 					}
