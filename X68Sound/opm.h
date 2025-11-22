@@ -1644,6 +1644,24 @@ inline void Opm::pcmset22(int ndata) {
 //					OutInpAdpcm[1] = (OutInpAdpcm[1]*TotalVolume) >> 8;
 
 
+					// Apply soft clipping before *40 amplification to prevent overflow
+					// OutInpAdpcm[] contains the sum of all ADPCM+PCM8 layers before amplification
+					// With octave layering at 100% volume each, this can be very large
+					// We apply soft clipping to limit the pre-amplification signal
+					if (g_Config.soft_clipping_enable) {
+						// Scale down to ±32767 range for soft clipping, then scale back
+						// Typical range before layers: ±32768 per source
+						// With 4 layers at 100%: ±131072, after auto-gain 55%: ±72089
+						// Target: keep within reasonable range before *40 amplification
+						const int PRE_AMP_SCALE = 4;  // Scale factor for pre-amplification clipping
+						int scaled_L = OutInpAdpcm[0] >> PRE_AMP_SCALE;
+						int scaled_R = OutInpAdpcm[1] >> PRE_AMP_SCALE;
+						scaled_L = ApplySoftClipping(scaled_L, g_Config.soft_clipping_threshold);
+						scaled_R = ApplySoftClipping(scaled_R, g_Config.soft_clipping_threshold);
+						OutInpAdpcm[0] = scaled_L << PRE_AMP_SCALE;
+						OutInpAdpcm[1] = scaled_R << PRE_AMP_SCALE;
+					}
+
 					#define	PCM_LIMITS	((1<<19)-1)
 					if ((unsigned int)(OutInpAdpcm[0]+PCM_LIMITS) > (unsigned int)(PCM_LIMITS*2)) {
 						if ((int)(OutInpAdpcm[0]+PCM_LIMITS) >= (int)(PCM_LIMITS*2)) {
