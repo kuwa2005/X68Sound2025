@@ -1296,122 +1296,118 @@ inline void Opm::pcmset22(int ndata) {
 							op[ch][3].Output(lfopitch[ch], lfolevel[ch]);
 						}
 						op[7][3].Output32(lfopitch[7], lfolevel[7]);
+
+						// Calculate normal FM output mix
+						InpInpOpm[0] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
+										+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
+										+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
+										+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
+										+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
+										+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
+										+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
+										+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
+						InpInpOpm[1] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
+										+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
+										+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
+										+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
+										+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
+										+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
+										+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
+										+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
+
+						// FM Octave Layering: Add upper and lower octave sounds
+						if (g_Config.fm_octave_upper_enable || g_Config.fm_octave_lower_enable) {
+							// Process upper octave (+1 octave = +12 semitones = +12*64)
+							if (g_Config.fm_octave_upper_enable && g_Config.fm_octave_upper_volume > 0) {
+								const int pitch_offset = 12 * 64;  // +1 octave
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].inp=op[ch][2].inp=op[ch][3].inp=OpOut[ch]=0;
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][0].Output0WithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][2].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<7; ++ch) {
+									op[ch][3].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								op[7][3].Output32WithPitchOffset(lfopitch[7], lfolevel[7], pitch_offset);
+
+								// Mix upper octave with volume control
+								int vol_scale = g_Config.fm_octave_upper_volume;  // 0-100%
+								int mix_L = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
+								int mix_R = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
+								InpInpOpm[0] += (mix_L * vol_scale) / 100;
+								InpInpOpm[1] += (mix_R * vol_scale) / 100;
+							}
+
+							// Process lower octave (-1 octave = -12 semitones = -12*64)
+							if (g_Config.fm_octave_lower_enable && g_Config.fm_octave_lower_volume > 0) {
+								const int pitch_offset = -12 * 64;  // -1 octave
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].inp=op[ch][2].inp=op[ch][3].inp=OpOut[ch]=0;
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][0].Output0WithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][1].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<8; ++ch) {
+									op[ch][2].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								for (ch=0; ch<7; ++ch) {
+									op[ch][3].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
+								}
+								op[7][3].Output32WithPitchOffset(lfopitch[7], lfolevel[7], pitch_offset);
+
+								// Mix lower octave with volume control
+								int vol_scale = g_Config.fm_octave_lower_volume;  // 0-100%
+								int mix_L = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
+								int mix_R = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
+										  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
+										  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
+										  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
+										  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
+										  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
+										  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
+										  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
+								InpInpOpm[0] += (mix_L * vol_scale) / 100;
+								InpInpOpm[1] += (mix_R * vol_scale) / 100;
+							}
+						}
+
+						// Apply bit-shift normalization to FM output
+						InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
+										>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
+						InpInpOpm[1] = (InpInpOpm[1]&(int)0xFFFFFC00)
+										>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
 					}
-
-
-
-				InpInpOpm[0] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
-								+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
-								+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
-								+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
-								+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
-								+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
-								+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
-								+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
-				InpInpOpm[1] =    ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
-								+ ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
-								+ ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
-								+ ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
-								+ ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
-								+ ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
-								+ ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
-								+ ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
-
-				// FM Octave Layering: Add upper and lower octave sounds
-				if (g_Config.fm_octave_upper_enable || g_Config.fm_octave_lower_enable) {
-					int ch;
-					// Process upper octave (+1 octave = +12 semitones = +12*64)
-					if (g_Config.fm_octave_upper_enable && g_Config.fm_octave_upper_volume > 0) {
-						const int pitch_offset = 12 * 64;  // +1 octave
-						for (ch=0; ch<8; ++ch) {
-							op[ch][1].inp=op[ch][2].inp=op[ch][3].inp=OpOut[ch]=0;
-						}
-						for (ch=0; ch<8; ++ch) {
-							op[ch][0].Output0WithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						for (ch=0; ch<8; ++ch) {
-							op[ch][1].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						for (ch=0; ch<8; ++ch) {
-							op[ch][2].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						for (ch=0; ch<7; ++ch) {
-							op[ch][3].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						op[7][3].Output32WithPitchOffset(lfopitch[7], lfolevel[7], pitch_offset);
-
-						// Mix upper octave with volume control
-						int vol_scale = g_Config.fm_octave_upper_volume;  // 0-100%
-						int mix_L = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
-								  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
-								  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
-								  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
-								  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
-								  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
-								  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
-								  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
-						int mix_R = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
-								  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
-								  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
-								  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
-								  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
-								  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
-								  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
-								  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
-						InpInpOpm[0] += (mix_L * vol_scale) / 100;
-						InpInpOpm[1] += (mix_R * vol_scale) / 100;
-					}
-
-					// Process lower octave (-1 octave = -12 semitones = -12*64)
-					if (g_Config.fm_octave_lower_enable && g_Config.fm_octave_lower_volume > 0) {
-						const int pitch_offset = -12 * 64;  // -1 octave
-						for (ch=0; ch<8; ++ch) {
-							op[ch][1].inp=op[ch][2].inp=op[ch][3].inp=OpOut[ch]=0;
-						}
-						for (ch=0; ch<8; ++ch) {
-							op[ch][0].Output0WithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						for (ch=0; ch<8; ++ch) {
-							op[ch][1].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						for (ch=0; ch<8; ++ch) {
-							op[ch][2].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						for (ch=0; ch<7; ++ch) {
-							op[ch][3].OutputWithPitchOffset(lfopitch[ch], lfolevel[ch], pitch_offset);
-						}
-						op[7][3].Output32WithPitchOffset(lfopitch[7], lfolevel[7], pitch_offset);
-
-						// Mix lower octave with volume control
-						int vol_scale = g_Config.fm_octave_lower_volume;  // 0-100%
-						int mix_L = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[0][0]))
-								  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[0][1]))
-								  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[0][2]))
-								  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[0][3]))
-								  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[0][4]))
-								  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[0][5]))
-								  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[0][6]))
-								  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[0][7]));
-						int mix_R = ((OpmChMask & 0x01) ? 0 : (OpOut[0] & pan[1][0]))
-								  + ((OpmChMask & 0x02) ? 0 : (OpOut[1] & pan[1][1]))
-								  + ((OpmChMask & 0x04) ? 0 : (OpOut[2] & pan[1][2]))
-								  + ((OpmChMask & 0x08) ? 0 : (OpOut[3] & pan[1][3]))
-								  + ((OpmChMask & 0x10) ? 0 : (OpOut[4] & pan[1][4]))
-								  + ((OpmChMask & 0x20) ? 0 : (OpOut[5] & pan[1][5]))
-								  + ((OpmChMask & 0x40) ? 0 : (OpOut[6] & pan[1][6]))
-								  + ((OpmChMask & 0x80) ? 0 : (OpOut[7] & pan[1][7]));
-						InpInpOpm[0] += (mix_L * vol_scale) / 100;
-						InpInpOpm[1] += (mix_R * vol_scale) / 100;
-					}
-				}
-
-				{
-
-					InpInpOpm[0] = (InpInpOpm[0]&(int)0xFFFFFC00)
-									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
-					InpInpOpm[1] = (InpInpOpm[1]&(int)0xFFFFFC00)
-									>> ((SIZESINTBL_BITS+PRECISION_BITS)-10-5);
-				}
 #if 0
 				InpInpOpm[0] += (InpInpOpm[0]<<4)+InpInpOpm[0];	// * 18
 				InpInpOpm[1] += (InpInpOpm[1]<<4)+InpInpOpm[1];	// * 18
