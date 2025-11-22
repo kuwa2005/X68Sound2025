@@ -5,6 +5,39 @@
 #define	PCMBUFSIZE	65536
 //#define	DELAY	(1000/5)
 
+// Soft clipping function - prevents hard clipping with smooth saturation curve
+// Uses cubic soft clipping algorithm for smooth distortion
+inline int ApplySoftClipping(int sample, int threshold_percent) {
+	// Calculate threshold based on percentage (50-100%)
+	// Max sample value is around 32768 (16-bit)
+	const int MAX_SAMPLE = 32767;
+	int threshold = (MAX_SAMPLE * threshold_percent) / 100;
+
+	if (sample > threshold) {
+		// Soft clip positive overshoot
+		int overshoot = sample - threshold;
+		int range = MAX_SAMPLE - threshold;
+		// Cubic soft clipping: y = threshold + range * (1 - (1 - x/range)^3)
+		// Simplified: use tanh-like approximation for speed
+		int ratio = (overshoot << 8) / range;  // Fixed point 8.8
+		if (ratio > 256) ratio = 256;  // Clamp to 1.0
+		// Soft saturation curve: output = threshold + range * (ratio / (1 + ratio))
+		int soft = (ratio << 8) / (256 + ratio);  // Returns 0-256 range
+		return threshold + ((range * soft) >> 8);
+	} else if (sample < -threshold) {
+		// Soft clip negative overshoot (symmetric)
+		int overshoot = -sample - threshold;
+		int range = MAX_SAMPLE - threshold;
+		int ratio = (overshoot << 8) / range;
+		if (ratio > 256) ratio = 256;
+		int soft = (ratio << 8) / (256 + ratio);
+		return -(threshold + ((range * soft) >> 8));
+	}
+
+	// No clipping needed
+	return sample;
+}
+
 #ifdef C86CTL
 
 // c86ctl definitions
@@ -1644,6 +1677,12 @@ inline void Opm::pcmset22(int ndata) {
 //		Out[0] = (Out[0]*TotalVolume) >> 8;
 //		Out[1] = (Out[1]*TotalVolume) >> 8;
 
+
+		// Apply soft clipping to prevent distortion when master volume is high
+		if (g_Config.soft_clipping_enable) {
+			Out[0] = ApplySoftClipping(Out[0], g_Config.soft_clipping_threshold);
+			Out[1] = ApplySoftClipping(Out[1], g_Config.soft_clipping_threshold);
+		}
 
 
 		if (WaveFunc != NULL) {

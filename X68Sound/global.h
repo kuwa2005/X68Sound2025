@@ -71,6 +71,10 @@ struct X68SoundConfig {
 	// Master volume controls (independent adjustment for FM and ADPCM)
 	int fm_master_volume;            // FM master volume (0-200%, default: 100)
 	int adpcm_master_volume;         // ADPCM master volume (0-200%, default: 100)
+
+	// Soft clipping/limiter (prevent clipping when master volume is high)
+	int soft_clipping_enable;        // Enable soft clipping (0=OFF, 1=ON, default: 1)
+	int soft_clipping_threshold;     // Soft clipping threshold (50-100%, default: 85)
 };
 
 // Global configuration instance
@@ -125,7 +129,11 @@ X68SoundConfig g_Config = {
 
 	// Master volume
 	100,    // fm_master_volume (default: 100%)
-	100     // adpcm_master_volume (default: 100%)
+	100,    // adpcm_master_volume (default: 100%)
+
+	// Soft clipping
+	1,      // soft_clipping_enable (default: ON to prevent clipping)
+	85      // soft_clipping_threshold (default: 85%)
 };
 
 // Helper function to read environment variable as integer
@@ -201,6 +209,10 @@ inline void LoadConfigFromEnvironment() {
 	// Master volume controls
 	g_Config.fm_master_volume = GetEnvInt("X68SOUND_FM_MASTER_VOLUME", 100);
 	g_Config.adpcm_master_volume = GetEnvInt("X68SOUND_ADPCM_MASTER_VOLUME", 100);
+
+	// Soft clipping
+	g_Config.soft_clipping_enable = GetEnvInt("X68SOUND_SOFT_CLIPPING", 1);
+	g_Config.soft_clipping_threshold = GetEnvInt("X68SOUND_SOFT_CLIPPING_THRESHOLD", 85);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -295,6 +307,11 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.fm_master_volume > 200) g_Config.fm_master_volume = 200;
 	if (g_Config.adpcm_master_volume < 0) g_Config.adpcm_master_volume = 0;
 	if (g_Config.adpcm_master_volume > 200) g_Config.adpcm_master_volume = 200;
+
+	// Validate soft clipping
+	g_Config.soft_clipping_enable = (g_Config.soft_clipping_enable != 0) ? 1 : 0;
+	if (g_Config.soft_clipping_threshold < 50) g_Config.soft_clipping_threshold = 50;
+	if (g_Config.soft_clipping_threshold > 100) g_Config.soft_clipping_threshold = 100;
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {
