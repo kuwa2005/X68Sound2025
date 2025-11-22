@@ -61,6 +61,9 @@ struct X68SoundConfig {
 	int adpcm_octave_lower_volume; // Volume percentage for -1 octave ADPCM (0-100%, default: 50)
 	int adpcm_octave_lower2_enable; // Enable -2 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
 	int adpcm_octave_lower2_volume; // Volume percentage for -2 octave ADPCM (0-100%, default: 50)
+
+	// ADPCM Multi-channel Mode (experimental)
+	int adpcm_multichannel_mode;    // Enable ADPCM multi-channel playback (0=OFF, 1=ON, default: 0)
 };
 
 // Global configuration instance
@@ -105,7 +108,10 @@ X68SoundConfig g_Config = {
 	0,      // adpcm_octave_lower_enable
 	50,     // adpcm_octave_lower_volume
 	0,      // adpcm_octave_lower2_enable
-	50      // adpcm_octave_lower2_volume
+	50,     // adpcm_octave_lower2_volume
+
+	// ADPCM Multi-channel Mode
+	0       // adpcm_multichannel_mode (experimental, default: OFF)
 };
 
 // Helper function to read environment variable as integer
@@ -171,6 +177,9 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.adpcm_octave_lower_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER_VOL", 50);
 	g_Config.adpcm_octave_lower2_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER2", 0);
 	g_Config.adpcm_octave_lower2_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER2_VOL", 50);
+
+	// ADPCM Multi-channel Mode
+	g_Config.adpcm_multichannel_mode = GetEnvInt("X68SOUND_ADPCM_MULTICHANNEL", 0);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
