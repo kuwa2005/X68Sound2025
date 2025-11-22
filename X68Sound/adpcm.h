@@ -22,13 +22,13 @@ class Adpcm {
 	inline void adpcm2pcm(unsigned char adpcm);
 	inline void adpcm2pcm_msm6258(unsigned char adpcm);
 
-	// Ring buffer helper methods for multi-channel mode
-	inline void WriteToRingBuffer(int sample);
-	inline int ReadFromRingBuffer(int layer, int rateIncrement);
-
 public:
 	void (CALLBACK *IntProc)();	// Interrupt address
 	void (CALLBACK *ErrIntProc)();	// Error interrupt address
+
+	// Ring buffer helper methods for multi-channel mode (public for opm.h access)
+	inline void WriteToRingBuffer(int sample);
+	inline int ReadFromRingBuffer(int layer, int rateIncrement);
 
 
 
