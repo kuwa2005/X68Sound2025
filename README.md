@@ -132,6 +132,8 @@ set X68SOUND_DEBUG=2   :: デバッグログ有効化（0=オフ、1=基本、2=
     - 環境変数 `X68SOUND_ADPCM_OCTAVE_UPPER_VOL` (0-100): +1オクターブの音量（%）
     - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER` (0/1): ADPCM-1オクターブ有効化
     - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER_VOL` (0-100): -1オクターブの音量（%）
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER2` (0/1): ADPCM-2オクターブ有効化
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER2_VOL` (0-100): -2オクターブの音量（%）
   - すべてデフォルトOFF、環境変数で個別に制御可能
   - FM音源は真のオクターブシフト、ADPCMは音量レイヤリング（注記参照）
 
@@ -144,15 +146,21 @@ set X68SOUND_FM_OCTAVE_UPPER_VOL=50
 REM FM音源に1オクターブ下の音を30%の音量で重ねる
 set X68SOUND_FM_OCTAVE_LOWER=1
 set X68SOUND_FM_OCTAVE_LOWER_VOL=30
+
+REM ADPCMに2オクターブ下の音を40%の音量で重ねる（重低音強化）
+set X68SOUND_ADPCM_OCTAVE_LOWER2=1
+set X68SOUND_ADPCM_OCTAVE_LOWER2_VOL=40
 ```
 
 **効果:**
 - FM音源: より豊かで厚みのある音色（オルガン的な響き）
 - ADPCM音源: 音の存在感と迫力の向上
+- ADPCM-2オクターブ: 重低音の強化、打楽器や効果音の迫力向上
 
 **注記:**
 - FM音源: 各オペレーターのピッチを変更して真のオクターブシフトを実現
 - ADPCM音源: 現在は音量レイヤリングのみ対応（真のピッチシフトは将来実装予定）
+- ADPCM-2オクターブ: -1オクターブと併用可能、重低音の補強に効果的
 - CPU負荷: FM上下両方有効時で約30-40%増加
 
 ### 2025/11/18 - v2.3 擬似ステレオ強化機能 & HPFフィルター改善

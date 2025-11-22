@@ -59,6 +59,8 @@ struct X68SoundConfig {
 	int adpcm_octave_upper_volume; // Volume percentage for +1 octave ADPCM (0-100%, default: 50)
 	int adpcm_octave_lower_enable; // Enable -1 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
 	int adpcm_octave_lower_volume; // Volume percentage for -1 octave ADPCM (0-100%, default: 50)
+	int adpcm_octave_lower2_enable; // Enable -2 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
+	int adpcm_octave_lower2_volume; // Volume percentage for -2 octave ADPCM (0-100%, default: 50)
 };
 
 // Global configuration instance
@@ -101,7 +103,9 @@ X68SoundConfig g_Config = {
 	0,      // adpcm_octave_upper_enable
 	50,     // adpcm_octave_upper_volume
 	0,      // adpcm_octave_lower_enable
-	50      // adpcm_octave_lower_volume
+	50,     // adpcm_octave_lower_volume
+	0,      // adpcm_octave_lower2_enable
+	50      // adpcm_octave_lower2_volume
 };
 
 // Helper function to read environment variable as integer
@@ -165,6 +169,8 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.adpcm_octave_upper_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_UPPER_VOL", 50);
 	g_Config.adpcm_octave_lower_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER", 0);
 	g_Config.adpcm_octave_lower_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER_VOL", 50);
+	g_Config.adpcm_octave_lower2_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER2", 0);
+	g_Config.adpcm_octave_lower2_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER2_VOL", 50);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -239,6 +245,7 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.fm_octave_lower_enable = (g_Config.fm_octave_lower_enable != 0) ? 1 : 0;
 	g_Config.adpcm_octave_upper_enable = (g_Config.adpcm_octave_upper_enable != 0) ? 1 : 0;
 	g_Config.adpcm_octave_lower_enable = (g_Config.adpcm_octave_lower_enable != 0) ? 1 : 0;
+	g_Config.adpcm_octave_lower2_enable = (g_Config.adpcm_octave_lower2_enable != 0) ? 1 : 0;
 	if (g_Config.fm_octave_upper_volume < 0) g_Config.fm_octave_upper_volume = 0;
 	if (g_Config.fm_octave_upper_volume > 100) g_Config.fm_octave_upper_volume = 100;
 	if (g_Config.fm_octave_lower_volume < 0) g_Config.fm_octave_lower_volume = 0;
@@ -247,6 +254,8 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.adpcm_octave_upper_volume > 100) g_Config.adpcm_octave_upper_volume = 100;
 	if (g_Config.adpcm_octave_lower_volume < 0) g_Config.adpcm_octave_lower_volume = 0;
 	if (g_Config.adpcm_octave_lower_volume > 100) g_Config.adpcm_octave_lower_volume = 100;
+	if (g_Config.adpcm_octave_lower2_volume < 0) g_Config.adpcm_octave_lower2_volume = 0;
+	if (g_Config.adpcm_octave_lower2_volume > 100) g_Config.adpcm_octave_lower2_volume = 100;
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {

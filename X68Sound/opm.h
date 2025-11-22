@@ -1470,6 +1470,10 @@ inline void Opm::pcmset22(int ndata) {
 								OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower_volume) / 100;
 								OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower_volume) / 100;
 							}
+							if (g_Config.adpcm_octave_lower2_enable && g_Config.adpcm_octave_lower2_volume > 0) {
+								OutInpAdpcm[0] += (adpcm_L * g_Config.adpcm_octave_lower2_volume) / 100;
+								OutInpAdpcm[1] += (adpcm_R * g_Config.adpcm_octave_lower2_volume) / 100;
+							}
 						}
 					}
 
