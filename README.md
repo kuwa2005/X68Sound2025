@@ -7,7 +7,7 @@
   
 - 互換性を保つため mdxプレイヤーの起動の前、環境変数で設定を行いますので、普段遣いの mxv.exe、mxwav.exeが使えます。
 
-[リリース一覧](https://github.com/kuwa2005/X68Sound2025/releases/tag/DLL)
+[リリース一覧](https://github.com/kuwa2005/X68Sound2025/releases)
 
 ## 🎵 最高音質で使う（推奨設定）
 
@@ -637,5 +637,6 @@ set X68SOUND_BUF_MULTIPLIER=2
 - 音質向上機能（PCM8/ADPCM線形補間、OPM線形補間、ボリュームスムージング）
 - ハイレゾ音源対応（96kHz/192kHz出力サンプリングレート）
 - コード品質改善（飽和演算、定数化、コメント整理） 
+
 
 
