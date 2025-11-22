@@ -1490,6 +1490,19 @@ inline void Opm::pcmset22(int ndata) {
 			OutOpm[0] = (OutOpm[0] * g_Config.fm_master_volume) / 100;
 			OutOpm[1] = (OutOpm[1] * g_Config.fm_master_volume) / 100;
 
+			// Apply soft clipping to FM output to prevent distortion when FM master volume is high
+			// This prevents FM from clipping before being mixed with ADPCM output
+			// OutOpm[] is scaled by >>5 before adding to Out[] (line 1493-1494), so we scale appropriately
+			if (g_Config.soft_clipping_enable) {
+				const int FM_SCALE_SHIFT = 5;  // >>5 is applied later at line 1493-1494
+				int fm_L = -(OutOpm[0] >> FM_SCALE_SHIFT);
+				int fm_R = -(OutOpm[1] >> FM_SCALE_SHIFT);
+				fm_L = ApplySoftClipping(fm_L, g_Config.soft_clipping_threshold);
+				fm_R = ApplySoftClipping(fm_R, g_Config.soft_clipping_threshold);
+				OutOpm[0] = -(fm_L << FM_SCALE_SHIFT);
+				OutOpm[1] = -(fm_R << FM_SCALE_SHIFT);
+			}
+
 			Out[0] -= OutOpm[0]>>(5);
 			Out[1] -= OutOpm[1]>>(5);
 		}  // UseOpmFlags == 1
@@ -1664,6 +1677,19 @@ inline void Opm::pcmset22(int ndata) {
 			// Apply ADPCM master volume control
 			OutOutAdpcm[0] = (OutOutAdpcm[0] * g_Config.adpcm_master_volume) / 100;
 			OutOutAdpcm[1] = (OutOutAdpcm[1] * g_Config.adpcm_master_volume) / 100;
+
+			// Apply soft clipping to ADPCM output to prevent distortion when ADPCM master volume is high
+			// This prevents ADPCM from clipping before being mixed with FM output
+			// OutOutAdpcm[] is scaled by >>4 before adding to Out[] (line 1672-1673), so we scale appropriately
+			if (g_Config.soft_clipping_enable) {
+				const int ADPCM_SCALE_SHIFT = 4;  // >>4 is applied later at line 1672-1673
+				int adpcm_L = -(OutOutAdpcm[0] >> ADPCM_SCALE_SHIFT);
+				int adpcm_R = -(OutOutAdpcm[1] >> ADPCM_SCALE_SHIFT);
+				adpcm_L = ApplySoftClipping(adpcm_L, g_Config.soft_clipping_threshold);
+				adpcm_R = ApplySoftClipping(adpcm_R, g_Config.soft_clipping_threshold);
+				OutOutAdpcm[0] = -(adpcm_L << ADPCM_SCALE_SHIFT);
+				OutOutAdpcm[1] = -(adpcm_R << ADPCM_SCALE_SHIFT);
+			}
 
 
 
