@@ -49,6 +49,16 @@ struct X68SoundConfig {
 	int reverb_decay;             // Reverb decay time (10-95%, default: 70)
 	int reverb_mix;               // Reverb wet/dry mix (0-50%, default: 20)
 	int compressor_level;         // Multiband compressor (0=OFF, 1=Gentle, 2=Medium, 3=Strong, default: 0)
+
+	// Octave Layering Configuration
+	int fm_octave_upper_enable;   // Enable +1 octave layering for FM (0=OFF, 1=ON, default: 0)
+	int fm_octave_upper_volume;   // Volume percentage for +1 octave FM (0-100%, default: 50)
+	int fm_octave_lower_enable;   // Enable -1 octave layering for FM (0=OFF, 1=ON, default: 0)
+	int fm_octave_lower_volume;   // Volume percentage for -1 octave FM (0-100%, default: 50)
+	int adpcm_octave_upper_enable; // Enable +1 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
+	int adpcm_octave_upper_volume; // Volume percentage for +1 octave ADPCM (0-100%, default: 50)
+	int adpcm_octave_lower_enable; // Enable -1 octave layering for ADPCM (0=OFF, 1=ON, default: 0)
+	int adpcm_octave_lower_volume; // Volume percentage for -1 octave ADPCM (0-100%, default: 50)
 };
 
 // Global configuration instance
@@ -81,7 +91,17 @@ X68SoundConfig g_Config = {
 	0,      // reverb_type
 	70,     // reverb_decay
 	20,     // reverb_mix
-	0       // compressor_level
+	0,      // compressor_level
+
+	// Octave Layering (all OFF by default)
+	0,      // fm_octave_upper_enable
+	50,     // fm_octave_upper_volume
+	0,      // fm_octave_lower_enable
+	50,     // fm_octave_lower_volume
+	0,      // adpcm_octave_upper_enable
+	50,     // adpcm_octave_upper_volume
+	0,      // adpcm_octave_lower_enable
+	50      // adpcm_octave_lower_volume
 };
 
 // Helper function to read environment variable as integer
@@ -135,6 +155,16 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.reverb_decay = GetEnvInt("X68SOUND_REVERB_DECAY", 70);
 	g_Config.reverb_mix = GetEnvInt("X68SOUND_REVERB_MIX", 20);
 	g_Config.compressor_level = GetEnvInt("X68SOUND_COMPRESSOR", 0);
+
+	// Octave Layering Configuration
+	g_Config.fm_octave_upper_enable = GetEnvInt("X68SOUND_FM_OCTAVE_UPPER", 0);
+	g_Config.fm_octave_upper_volume = GetEnvInt("X68SOUND_FM_OCTAVE_UPPER_VOL", 50);
+	g_Config.fm_octave_lower_enable = GetEnvInt("X68SOUND_FM_OCTAVE_LOWER", 0);
+	g_Config.fm_octave_lower_volume = GetEnvInt("X68SOUND_FM_OCTAVE_LOWER_VOL", 50);
+	g_Config.adpcm_octave_upper_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_UPPER", 0);
+	g_Config.adpcm_octave_upper_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_UPPER_VOL", 50);
+	g_Config.adpcm_octave_lower_enable = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER", 0);
+	g_Config.adpcm_octave_lower_volume = GetEnvInt("X68SOUND_ADPCM_OCTAVE_LOWER_VOL", 50);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -203,6 +233,20 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.reverb_mix > 50) g_Config.reverb_mix = 50;
 	if (g_Config.compressor_level < 0) g_Config.compressor_level = 0;
 	if (g_Config.compressor_level > 3) g_Config.compressor_level = 3;
+
+	// Validate octave layering parameters
+	g_Config.fm_octave_upper_enable = (g_Config.fm_octave_upper_enable != 0) ? 1 : 0;
+	g_Config.fm_octave_lower_enable = (g_Config.fm_octave_lower_enable != 0) ? 1 : 0;
+	g_Config.adpcm_octave_upper_enable = (g_Config.adpcm_octave_upper_enable != 0) ? 1 : 0;
+	g_Config.adpcm_octave_lower_enable = (g_Config.adpcm_octave_lower_enable != 0) ? 1 : 0;
+	if (g_Config.fm_octave_upper_volume < 0) g_Config.fm_octave_upper_volume = 0;
+	if (g_Config.fm_octave_upper_volume > 100) g_Config.fm_octave_upper_volume = 100;
+	if (g_Config.fm_octave_lower_volume < 0) g_Config.fm_octave_lower_volume = 0;
+	if (g_Config.fm_octave_lower_volume > 100) g_Config.fm_octave_lower_volume = 100;
+	if (g_Config.adpcm_octave_upper_volume < 0) g_Config.adpcm_octave_upper_volume = 0;
+	if (g_Config.adpcm_octave_upper_volume > 100) g_Config.adpcm_octave_upper_volume = 100;
+	if (g_Config.adpcm_octave_lower_volume < 0) g_Config.adpcm_octave_lower_volume = 0;
+	if (g_Config.adpcm_octave_lower_volume > 100) g_Config.adpcm_octave_lower_volume = 100;
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {

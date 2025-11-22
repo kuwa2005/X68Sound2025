@@ -116,6 +116,11 @@ public:
 	inline void Output0_22(int lfopitch, int lfolevel);
 	inline void Output_22(int lfopitch, int lfolevel);
 	inline void Output32_22(int lfopitch, int lfolevel);
+
+	// Octave layering support: output with pitch offset
+	inline void Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffset);
+	inline void OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffset);
+	inline void Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoffset);
 };
 
 
@@ -754,6 +759,108 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 		}
 		o = (Alpha)
 			* NoiseValue * MAXSINVAL;
+	}
+
+	*out += o;
+};
+
+// Octave layering support: Output methods with pitch offset
+// These methods are similar to the standard Output methods, but apply a pitch offset
+// for octave layering. pitchoffset is in the same units as Pitch (e.g., 12*64 for +1 octave)
+
+inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffset) {
+	// Calculate DeltaT with pitch offset
+	int shifted_pitch = Pitch + pitchoffset;
+	// Clamp to valid range
+	if (shifted_pitch < 0) shifted_pitch = 0;
+	if (shifted_pitch > KC_KF_DT2_MAX) shifted_pitch = KC_KF_DT2_MAX;
+
+	int deltaT = ((STEPTBL[shifted_pitch + lfopitch] + Dt1Pitch) * Mul) >> (6+1);
+	int tempT = T + deltaT;
+
+	int lfolevelame = lfolevel & Ame;
+	int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
+
+	// Linear interpolation of sine table
+	int phase_total = tempT + Out2Fb;
+	int sin_val;
+	if (g_Config.opm_sine_interpolation) {
+		int phase_index = (phase_total >> PRECISION_BITS) & (SIZESINTBL-1);
+		int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
+		int sin0 = SINTBL[phase_index];
+		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+	} else {
+		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
+	}
+	int o = alpha * sin_val;
+
+	// Don't update state (Out2Fb, Inp_last, T, etc.) - only output
+	*out += o;
+};
+
+inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffset) {
+	// Calculate DeltaT with pitch offset
+	int shifted_pitch = Pitch + pitchoffset;
+	// Clamp to valid range
+	if (shifted_pitch < 0) shifted_pitch = 0;
+	if (shifted_pitch > KC_KF_DT2_MAX) shifted_pitch = KC_KF_DT2_MAX;
+
+	int deltaT = ((STEPTBL[shifted_pitch + lfopitch] + Dt1Pitch) * Mul) >> (6+1);
+	int tempT = T + deltaT;
+
+	int lfolevelame = lfolevel & Ame;
+	int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
+
+	// Linear interpolation of sine table
+	int phase_total = tempT + inp;
+	int sin_val;
+	if (g_Config.opm_sine_interpolation) {
+		int phase_index = (phase_total >> PRECISION_BITS) & (SIZESINTBL-1);
+		int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
+		int sin0 = SINTBL[phase_index];
+		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+	} else {
+		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
+	}
+	int o = alpha * sin_val;
+
+	*out += o;
+};
+
+inline void Op::Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoffset) {
+	// Calculate DeltaT with pitch offset
+	int shifted_pitch = Pitch + pitchoffset;
+	// Clamp to valid range
+	if (shifted_pitch < 0) shifted_pitch = 0;
+	if (shifted_pitch > KC_KF_DT2_MAX) shifted_pitch = KC_KF_DT2_MAX;
+
+	int deltaT = ((STEPTBL[shifted_pitch + lfopitch] + Dt1Pitch) * Mul) >> (6+1);
+	int tempT = T + deltaT;
+
+	int o;
+	if (NoiseCycle == 0) {
+		int lfolevelame = lfolevel & Ame;
+		int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
+
+		// Linear interpolation of sine table
+		int phase_total = tempT + inp;
+		int sin_val;
+		if (g_Config.opm_sine_interpolation) {
+			int phase_index = (phase_total >> PRECISION_BITS) & (SIZESINTBL-1);
+			int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
+			int sin0 = SINTBL[phase_index];
+			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		} else {
+			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
+		}
+		o = alpha * sin_val;
+	} else {
+		int lfolevelame = lfolevel & Ame;
+		int alpha = (int)(NOISEALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
+		o = alpha * NoiseValue * MAXSINVAL;
 	}
 
 	*out += o;

@@ -118,6 +118,43 @@ set X68SOUND_DEBUG=2   :: デバッグログ有効化（0=オフ、1=基本、2=
 
 ## 最新の変更履歴
 
+### 2025/11/22 - v2.4 オクターブレイヤリング機能
+
+#### 新機能
+* **オクターブレイヤリングモード**: FM音源・ADPCM音源パート単位で1オクターブ上下の音を重ねる機能
+  - **FM音源オクターブレイヤリング**: 真のピッチシフトによる1オクターブ上下の音生成
+    - 環境変数 `X68SOUND_FM_OCTAVE_UPPER` (0/1): FM音源+1オクターブ有効化
+    - 環境変数 `X68SOUND_FM_OCTAVE_UPPER_VOL` (0-100): +1オクターブの音量（%）
+    - 環境変数 `X68SOUND_FM_OCTAVE_LOWER` (0/1): FM音源-1オクターブ有効化
+    - 環境変数 `X68SOUND_FM_OCTAVE_LOWER_VOL` (0-100): -1オクターブの音量（%）
+  - **ADPCM音源オクターブレイヤリング**: ボリューム調整による音の厚み増加
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_UPPER` (0/1): ADPCM+1オクターブ有効化
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_UPPER_VOL` (0-100): +1オクターブの音量（%）
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER` (0/1): ADPCM-1オクターブ有効化
+    - 環境変数 `X68SOUND_ADPCM_OCTAVE_LOWER_VOL` (0-100): -1オクターブの音量（%）
+  - すべてデフォルトOFF、環境変数で個別に制御可能
+  - FM音源は真のオクターブシフト、ADPCMは音量レイヤリング（注記参照）
+
+#### 使用例
+```batch
+REM FM音源に1オクターブ上の音を50%の音量で重ねる
+set X68SOUND_FM_OCTAVE_UPPER=1
+set X68SOUND_FM_OCTAVE_UPPER_VOL=50
+
+REM FM音源に1オクターブ下の音を30%の音量で重ねる
+set X68SOUND_FM_OCTAVE_LOWER=1
+set X68SOUND_FM_OCTAVE_LOWER_VOL=30
+```
+
+**効果:**
+- FM音源: より豊かで厚みのある音色（オルガン的な響き）
+- ADPCM音源: 音の存在感と迫力の向上
+
+**注記:**
+- FM音源: 各オペレーターのピッチを変更して真のオクターブシフトを実現
+- ADPCM音源: 現在は音量レイヤリングのみ対応（真のピッチシフトは将来実装予定）
+- CPU負荷: FM上下両方有効時で約30-40%増加
+
 ### 2025/11/18 - v2.3 擬似ステレオ強化機能 & HPFフィルター改善
 
 #### 新機能
