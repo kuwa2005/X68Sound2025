@@ -1496,15 +1496,23 @@ inline void Opm::pcmset22(int ndata) {
 			if (g_Config.soft_clipping_enable) {
 				const int FM_SCALE_SHIFT = 5;  // >>5 is applied at mixing stage
 
+				// Calculate effective threshold based on FM master volume
+				// When master volume is high (>120%), reduce threshold proportionally
+				int effective_threshold = g_Config.soft_clipping_threshold;
+				if (g_Config.fm_master_volume > 120) {
+					effective_threshold = (g_Config.soft_clipping_threshold * 100) / g_Config.fm_master_volume;
+					if (effective_threshold < 50) effective_threshold = 50;  // Minimum 50%
+				}
+
 				// Process left channel: scale down, clip, scale back up
 				// Note: OutOpm[] is negated when added to Out[] (line: Out[] -= OutOpm[] >> 5)
 				int fm_L_output = -(OutOpm[0] >> FM_SCALE_SHIFT);  // Actual output value
-				fm_L_output = ApplySoftClipping(fm_L_output, g_Config.soft_clipping_threshold);
+				fm_L_output = ApplySoftClipping(fm_L_output, effective_threshold);
 				OutOpm[0] = -(fm_L_output << FM_SCALE_SHIFT);  // Scale back
 
 				// Process right channel
 				int fm_R_output = -(OutOpm[1] >> FM_SCALE_SHIFT);
-				fm_R_output = ApplySoftClipping(fm_R_output, g_Config.soft_clipping_threshold);
+				fm_R_output = ApplySoftClipping(fm_R_output, effective_threshold);
 				OutOpm[1] = -(fm_R_output << FM_SCALE_SHIFT);
 			}
 
@@ -1651,9 +1659,12 @@ inline void Opm::pcmset22(int ndata) {
 					if (g_Config.soft_clipping_enable) {
 						// Scale down to ±32767 range for soft clipping, then scale back
 						// Typical range before layers: ±32768 per source
-						// With 4 layers at 100%: ±131072, after auto-gain 55%: ±72089
+						// With 3 layers at 100%: ±98304, after auto-gain 65%: ±63897
 						// Target: keep within reasonable range before *40 amplification
-						const int PRE_AMP_SCALE = 4;  // Scale factor for pre-amplification clipping
+						// PRE_AMP_SCALE=5 (>>5 = divide by 32) handles extreme cases like:
+						// - Multiple octave layers at 100% each
+						// - ADPCM master volume at 200%
+						const int PRE_AMP_SCALE = 5;  // Scale factor for pre-amplification clipping (increased from 4)
 						int scaled_L = OutInpAdpcm[0] >> PRE_AMP_SCALE;
 						int scaled_R = OutInpAdpcm[1] >> PRE_AMP_SCALE;
 						scaled_L = ApplySoftClipping(scaled_L, g_Config.soft_clipping_threshold);
@@ -1709,15 +1720,25 @@ inline void Opm::pcmset22(int ndata) {
 			if (g_Config.soft_clipping_enable) {
 				const int ADPCM_SCALE_SHIFT = 4;  // >>4 is applied at mixing stage
 
+				// Calculate effective threshold based on ADPCM master volume
+				// When master volume is high (>120%), reduce threshold proportionally
+				// This prevents clipping even with extreme settings like 200% master volume
+				int effective_threshold = g_Config.soft_clipping_threshold;
+				if (g_Config.adpcm_master_volume > 120) {
+					// Scale down threshold: 200% master vol → ~42% threshold (85 * 100 / 200)
+					effective_threshold = (g_Config.soft_clipping_threshold * 100) / g_Config.adpcm_master_volume;
+					if (effective_threshold < 50) effective_threshold = 50;  // Minimum 50%
+				}
+
 				// Process left channel: scale down, clip, scale back up
 				// Note: OutOutAdpcm[] is negated when added to Out[] (line: Out[] -= OutOutAdpcm[] >> 4)
 				int adpcm_L_output = -(OutOutAdpcm[0] >> ADPCM_SCALE_SHIFT);  // Actual output value
-				adpcm_L_output = ApplySoftClipping(adpcm_L_output, g_Config.soft_clipping_threshold);
+				adpcm_L_output = ApplySoftClipping(adpcm_L_output, effective_threshold);
 				OutOutAdpcm[0] = -(adpcm_L_output << ADPCM_SCALE_SHIFT);  // Scale back
 
 				// Process right channel
 				int adpcm_R_output = -(OutOutAdpcm[1] >> ADPCM_SCALE_SHIFT);
-				adpcm_R_output = ApplySoftClipping(adpcm_R_output, g_Config.soft_clipping_threshold);
+				adpcm_R_output = ApplySoftClipping(adpcm_R_output, effective_threshold);
 				OutOutAdpcm[1] = -(adpcm_R_output << ADPCM_SCALE_SHIFT);
 			}
 
