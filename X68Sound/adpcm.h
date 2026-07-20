@@ -582,14 +582,13 @@ inline int Adpcm::GetPcm() {
 		SaturationCounter++;
 
 		// If consecutive saturation detected (2+ samples in a row), aggressively reset
-		if (SaturationCounter >= 2 || abs_OutPcm > OUT_PCM_HARD_THRESHOLD) {
+		if (SaturationCounter >= 2) {
 			// Complete filter state reset to break oscillation
 			OutPcm = 0;           // Reset to zero (most aggressive)
 			InpPcm_prev = 0;      // Also reset filter history
 			SaturationCounter = 0; // Reset counter after intervention
 		} else {
-			// Single saturation - gentle reset to input value
-			OutPcm = InpPcm_for_hpf >> HPF_SHIFT;
+			// Single saturation - soft clamp to limit instead of hard jump
 			if (OutPcm > OUT_PCM_LIMIT) OutPcm = OUT_PCM_LIMIT;
 			if (OutPcm < -OUT_PCM_LIMIT) OutPcm = -OUT_PCM_LIMIT;
 		}
@@ -683,14 +682,13 @@ inline int Adpcm::GetPcm62() {
 	if (abs_OutInpPcm > OUT_INP_PCM_RESET_THRESHOLD) {
 		SaturationCounter62_1++;
 
-		if (SaturationCounter62_1 >= 2 || abs_OutInpPcm > OUT_INP_PCM_HARD_THRESHOLD) {
+		if (SaturationCounter62_1 >= 2) {
 			// Consecutive saturation - aggressive reset
 			OutInpPcm = 0;
 			InpPcm_prev = 0;
 			SaturationCounter62_1 = 0;
 		} else {
-			// Single saturation - gentle reset
-			OutInpPcm = (InpPcm_for_hpf<<9);
+			// Single saturation - soft clamp to limit
 			if (OutInpPcm > OUT_INP_PCM_LIMIT) OutInpPcm = OUT_INP_PCM_LIMIT;
 			if (OutInpPcm < -OUT_INP_PCM_LIMIT) OutInpPcm = -OUT_INP_PCM_LIMIT;
 		}
@@ -710,14 +708,13 @@ inline int Adpcm::GetPcm62() {
 	if (abs_OutPcm_62 > OUT_PCM_RESET_THRESHOLD_62) {
 		SaturationCounter62_2++;
 
-		if (SaturationCounter62_2 >= 2 || abs_OutPcm_62 > OUT_PCM_HARD_THRESHOLD_62) {
+		if (SaturationCounter62_2 >= 2) {
 			// Consecutive saturation - aggressive reset
 			OutPcm = 0;
 			OutInpPcm_prev = 0;
 			SaturationCounter62_2 = 0;
 		} else {
-			// Single saturation - gentle reset to first stage output
-			OutPcm = OutInpPcm;
+			// Single saturation - soft clamp to limit
 			if (OutPcm > OUT_PCM_LIMIT_62) OutPcm = OUT_PCM_LIMIT_62;
 			if (OutPcm < -OUT_PCM_LIMIT_62) OutPcm = -OUT_PCM_LIMIT_62;
 		}

@@ -505,7 +505,7 @@ your_application.exe
 
 ### ビルド方法
 
-#### Visual Studio 2022
+#### Windows - Visual Studio 2022
 ```batch
 REM x86版
 build_VS2022_x86.bat
@@ -517,7 +517,7 @@ REM ARM64版
 build_VS2022_arm64.bat
 ```
 
-#### Visual Studio 2019
+#### Windows - Visual Studio 2019
 ```batch
 REM x86版
 build_VS2019_x86.bat
@@ -526,7 +526,31 @@ REM x64版
 build_VS2019_x64.bat
 ```
 
+#### Linux - MinGW-w64クロスコンパイル
+Linux環境からWindows x64 DLLをビルドできます。
+
+```bash
+# MinGW-w64インストール（Ubuntu/Debian）
+sudo apt-get install mingw-w64
+
+# x64 DLLビルド
+x86_64-w64-mingw32-g++ -std=c++17 -fno-operator-names -fms-extensions \
+    -fpermissive -w -shared -o X68Sound.dll X68Sound/X68Sound.cpp \
+    -I X68Sound -lwinmm
+```
+
+> **注意:** x86 (32-bit) 版はMSVC固有の`__asm`インラインアセンブリが含まれるため、MinGWではビルドできません。32-bit版はVisual Studioでビルドしてください。
+
 ビルド後のDLLは `build/` ディレクトリに出力されます。
+
+### テスト
+
+Linux環境でオーディオ修正の単体テスト・結合テストを実行できます。
+
+```bash
+# テストビルド＆実行
+g++ -std=c++17 -Wall -Wextra -O2 -o tests/test_audio_fixes tests/test_audio_fixes.cpp && ./tests/test_audio_fixes
+```
 
 ---
 

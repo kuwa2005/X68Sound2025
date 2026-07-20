@@ -12,11 +12,18 @@ inline int ApplySoftClipping(int sample, int threshold_percent) {
 	// Max sample value is around 32768 (16-bit)
 	const int MAX_SAMPLE = 32767;
 	int threshold = (MAX_SAMPLE * threshold_percent) / 100;
+	int range = MAX_SAMPLE - threshold;
+
+	// Prevent division by zero if threshold is 100%
+	if (range <= 0) {
+		if (sample > MAX_SAMPLE) return MAX_SAMPLE;
+		if (sample < -MAX_SAMPLE) return -MAX_SAMPLE;
+		return sample;
+	}
 
 	if (sample > threshold) {
 		// Soft clip positive overshoot
 		int overshoot = sample - threshold;
-		int range = MAX_SAMPLE - threshold;
 		// Cubic soft clipping: y = threshold + range * (1 - (1 - x/range)^3)
 		// Simplified: use tanh-like approximation for speed
 		int ratio = (overshoot << 8) / range;  // Fixed point 8.8
@@ -27,7 +34,6 @@ inline int ApplySoftClipping(int sample, int threshold_percent) {
 	} else if (sample < -threshold) {
 		// Soft clip negative overshoot (symmetric)
 		int overshoot = -sample - threshold;
-		int range = MAX_SAMPLE - threshold;
 		int ratio = (overshoot << 8) / range;
 		if (ratio > 256) ratio = 256;
 		int soft = (ratio << 8) / (256 + ratio);

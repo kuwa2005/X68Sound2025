@@ -1,6 +1,7 @@
 # Compiled Object files
 *.obj
 *.res
+*.o
 
 # Compiled Dynamic libraries
 *.dll
@@ -12,3 +13,6 @@
 # Backup files
 *.*~
 *.bak
+
+# Test binaries
+tests/test_audio_fixes

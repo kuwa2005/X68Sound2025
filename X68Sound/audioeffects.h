@@ -328,8 +328,15 @@ void AudioEffects::ProcessReverb(int &L, int &R) {
 		int feedback_L = (comb_delayed_L * decay) >> 7;  // Divide by 128
 		int feedback_R = (comb_delayed_R * decay) >> 7;
 
-		reverb_comb_buffer_L[i][reverb_pos & REVERB_BUFFER_MASK] = L + feedback_L;
-		reverb_comb_buffer_R[i][reverb_pos & REVERB_BUFFER_MASK] = R + feedback_R;
+		int new_val_L = L + feedback_L;
+		int new_val_R = R + feedback_R;
+		// Clamp reverb buffer values to prevent unbounded accumulation
+		if (new_val_L > 50000) new_val_L = 50000;
+		if (new_val_L < -50000) new_val_L = -50000;
+		if (new_val_R > 50000) new_val_R = 50000;
+		if (new_val_R < -50000) new_val_R = -50000;
+		reverb_comb_buffer_L[i][reverb_pos & REVERB_BUFFER_MASK] = new_val_L;
+		reverb_comb_buffer_R[i][reverb_pos & REVERB_BUFFER_MASK] = new_val_R;
 
 		comb_out_L += comb_delayed_L;
 		comb_out_R += comb_delayed_R;
@@ -350,6 +357,11 @@ void AudioEffects::ProcessReverb(int &L, int &R) {
 		int temp_L = delayed_L - (allpass_out_L >> 1);
 		int temp_R = delayed_R - (allpass_out_R >> 1);
 
+		// Clamp allpass buffer values to prevent unbounded accumulation
+		if (allpass_out_L > 50000) allpass_out_L = 50000;
+		if (allpass_out_L < -50000) allpass_out_L = -50000;
+		if (allpass_out_R > 50000) allpass_out_R = 50000;
+		if (allpass_out_R < -50000) allpass_out_R = -50000;
 		reverb_allpass_buffer_L[i][reverb_pos & REVERB_BUFFER_MASK] = allpass_out_L;
 		reverb_allpass_buffer_R[i][reverb_pos & REVERB_BUFFER_MASK] = allpass_out_R;
 
@@ -398,11 +410,13 @@ void AudioEffects::ProcessCompressor(int &L, int &R) {
 
 	if (comp_mid_env_L > threshold) {
 		int reduction = ((comp_mid_env_L - threshold) * g_Config.compressor_level) >> 4;
+		if (reduction > 224) reduction = 224;  // Max 87.5% reduction to prevent signal inversion
 		L = (L * (256 - reduction)) >> 8;
 	}
 
 	if (comp_mid_env_R > threshold) {
 		int reduction = ((comp_mid_env_R - threshold) * g_Config.compressor_level) >> 4;
+		if (reduction > 224) reduction = 224;  // Max 87.5% reduction to prevent signal inversion
 		R = (R * (256 - reduction)) >> 8;
 	}
 }
