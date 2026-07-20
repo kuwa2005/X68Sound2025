@@ -582,7 +582,7 @@ inline void Op::Output(int lfopitch, int lfolevel) {
 		LfoLevel = lfolevelame;
 	}
 
-	// Linear interpolation of sine table (OPM audio quality improvement)
+	// Sine table interpolation (OPM audio quality improvement)
 	int phase_total = T + inp;
 	int sin_val;
 	if (g_Config.opm_sine_interpolation) {
@@ -591,8 +591,19 @@ inline void Op::Output(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		// Linear interpolation (baseline)
+		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
+		// This eliminates 2nd harmonic distortion from linear interpolation
+		int second_deriv = sin_prev - (sin0 << 1) + sin1;
+		int t = phase_frac;
+		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
+		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+		sin_val = linear - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -617,7 +628,7 @@ inline void Op::Output32(int lfopitch, int lfolevel) {
 			LfoLevel = lfolevelame;
 		}
 
-		// Linear interpolation of sine table (OPM audio quality improvement)
+		// Sine table interpolation (OPM audio quality improvement)
 		int phase_total = T + inp;
 		int sin_val;
 		if (g_Config.opm_sine_interpolation) {
@@ -626,8 +637,18 @@ inline void Op::Output32(int lfopitch, int lfolevel) {
 
 			int sin0 = SINTBL[phase_index];
 			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			// Linear interpolation (baseline)
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+			// Parabolic correction
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+			sin_val = linear - correction;
 		} else {
 			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 		}
@@ -718,7 +739,7 @@ inline void Op::Output_22(int lfopitch, int lfolevel) {
 		LfoLevel = lfolevelame;
 	}
 
-	// Linear interpolation of sine table (OPM audio quality improvement)
+	// Sine table interpolation (OPM audio quality improvement)
 	int phase_total = T + inp;
 	int sin_val;
 	if (g_Config.opm_sine_interpolation) {
@@ -727,8 +748,19 @@ inline void Op::Output_22(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		// Linear interpolation (baseline)
+		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
+		// This eliminates 2nd harmonic distortion from linear interpolation
+		int second_deriv = sin_prev - (sin0 << 1) + sin1;
+		int t = phase_frac;
+		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
+		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+		sin_val = linear - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -753,7 +785,7 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 			LfoLevel = lfolevelame;
 		}
 
-		// Linear interpolation of sine table (OPM audio quality improvement)
+		// Sine table interpolation (OPM audio quality improvement)
 		int phase_total = T + inp;
 		int sin_val;
 		if (g_Config.opm_sine_interpolation) {
@@ -762,8 +794,18 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 
 			int sin0 = SINTBL[phase_index];
 			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			// Linear interpolation (baseline)
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+			// Parabolic correction
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+			sin_val = linear - correction;
 		} else {
 			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 		}
@@ -805,7 +847,7 @@ inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffs
 	int lfolevelame = lfolevel & Ame;
 	int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
 
-	// Linear interpolation of sine table
+	// Sine table interpolation (OPM audio quality improvement)
 	int phase_total = tempT + Out2Fb;
 	int sin_val;
 	if (g_Config.opm_sine_interpolation) {
@@ -813,7 +855,18 @@ inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffs
 		int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+
+		// Linear interpolation (baseline)
+		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+		// Parabolic correction
+		int second_deriv = sin_prev - (sin0 << 1) + sin1;
+		int t = phase_frac;
+		int t_inv = (1 << PRECISION_BITS) - t;
+		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+		sin_val = linear - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -836,7 +889,7 @@ inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffse
 	int lfolevelame = lfolevel & Ame;
 	int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
 
-	// Linear interpolation of sine table
+	// Sine table interpolation (OPM audio quality improvement)
 	int phase_total = tempT + inp;
 	int sin_val;
 	if (g_Config.opm_sine_interpolation) {
@@ -844,7 +897,18 @@ inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffse
 		int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+
+		// Linear interpolation (baseline)
+		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+		// Parabolic correction
+		int second_deriv = sin_prev - (sin0 << 1) + sin1;
+		int t = phase_frac;
+		int t_inv = (1 << PRECISION_BITS) - t;
+		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+		sin_val = linear - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -868,7 +932,7 @@ inline void Op::Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoff
 		int lfolevelame = lfolevel & Ame;
 		int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
 
-		// Linear interpolation of sine table
+		// Sine table interpolation (OPM audio quality improvement)
 		int phase_total = tempT + inp;
 		int sin_val;
 		if (g_Config.opm_sine_interpolation) {
@@ -876,7 +940,18 @@ inline void Op::Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoff
 			int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
 			int sin0 = SINTBL[phase_index];
 			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+
+			// Linear interpolation (baseline)
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+			// Parabolic correction
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+			sin_val = linear - correction;
 		} else {
 			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 		}
