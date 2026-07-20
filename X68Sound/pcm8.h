@@ -347,15 +347,19 @@ inline int Pcm8::GetPcm() {
 	}
 
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
+	// Time-based: maintain ~5ms ramp regardless of sample rate
 	int effectiveVolume = Volume;
 	if (g_Config.volume_smoothing) {
 		if (CurrentVolume != Volume) {
 			int diff = Volume - CurrentVolume;
+			// Scale step by 44100/Samprate to keep ramp time constant (~5ms)
+			int step = ((diff >> 8) + 1) * 44100 / Samprate;
+			if (step < 1) step = 1;
 			if (diff > 0) {
-				CurrentVolume += (diff >> 8) + 1;
+				CurrentVolume += step;
 				if (CurrentVolume > Volume) CurrentVolume = Volume;
 			} else {
-				CurrentVolume += (diff >> 8) - 1;
+				CurrentVolume -= step;
 				if (CurrentVolume < Volume) CurrentVolume = Volume;
 			}
 		}
@@ -493,15 +497,19 @@ inline int Pcm8::GetPcm62() {
 	}
 
 	// Volume smoothing: Gradually approach CurrentVolume to Volume (when enabled via environment variable)
+	// Time-based: maintain ~5ms ramp regardless of sample rate
 	int effectiveVolume = Volume;
 	if (g_Config.volume_smoothing) {
 		if (CurrentVolume != Volume) {
 			int diff = Volume - CurrentVolume;
+			// Scale step by 44100/Samprate to keep ramp time constant (~5ms)
+			int step = ((diff >> 8) + 1) * 44100 / Samprate;
+			if (step < 1) step = 1;
 			if (diff > 0) {
-				CurrentVolume += (diff >> 8) + 1;
+				CurrentVolume += step;
 				if (CurrentVolume > Volume) CurrentVolume = Volume;
 			} else {
-				CurrentVolume += (diff >> 8) - 1;
+				CurrentVolume -= step;
 				if (CurrentVolume < Volume) CurrentVolume = Volume;
 			}
 		}

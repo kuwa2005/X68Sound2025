@@ -357,7 +357,7 @@ inline void LoadConfigFromEnvironment() {
 #define	SIZEALPHATBL_BITS	(10)
 #define	SIZEALPHATBL	(1<<SIZEALPHATBL_BITS)
 
-#define	SIZESINTBL_BITS	(10)
+#define	SIZESINTBL_BITS	(12)
 #define	SIZESINTBL	(1<<SIZESINTBL_BITS)
 #define	MAXSINVAL	(1<<(SIZESINTBL_BITS+2))
 
@@ -378,7 +378,7 @@ int	STEPTBL[11*12*64];
 //int	STEPTBL3[11*12*64];
 #define	ALPHAZERO	(SIZEALPHATBL*3)
 unsigned short	ALPHATBL[ALPHAZERO+SIZEALPHATBL+1];
-short	SINTBL[SIZESINTBL];
+int	SINTBL[SIZESINTBL];
 const int STEPTBL_O2[12*64] = {
 	1299,1300,1301,1302,1303,1304,1305,1306,
 	1308,1309,1310,1311,1313,1314,1315,1316,
@@ -662,10 +662,15 @@ int	CALLBACK MemReadDefault(unsigned char *adrs) {
 }
 int (CALLBACK *MemRead)(unsigned char *adrs) = MemReadDefault;
 
+// 17-bit LFSR noise generator (matches YM2151 hardware)
+// Taps at bits 0 and 3, XOR feedback
 unsigned int irnd(void) {
-	static unsigned int seed = 1;
-	seed = seed * 1566083941UL + 1;
-	return seed;
+	static unsigned int lfsr = 1;
+	// Feedback: XOR bits 0 and 3
+	int feedback = (lfsr ^ (lfsr >> 3)) & 1;
+	// Shift right and insert feedback at bit 16
+	lfsr = (lfsr >> 1) | (feedback << 16);
+	return lfsr;
 }
 
 // Saturating arithmetic (overflow protection)

@@ -19,6 +19,10 @@ private:
 	int reverb_allpass_buffer_R[REVERB_ALLPASS_COUNT][REVERB_BUFFER_SIZE];
 	int reverb_pos;
 
+	// Reverb damping filter state (one-pole LPF in comb feedback loop)
+	int reverb_damping_L[REVERB_COMB_COUNT];
+	int reverb_damping_R[REVERB_COMB_COUNT];
+
 	// Reverb delay times (in samples, optimized for 48kHz)
 	static const int comb_delays[REVERB_COMB_COUNT];
 	static const int allpass_delays[REVERB_ALLPASS_COUNT];
@@ -113,6 +117,12 @@ void AudioEffects::Reset() {
 		}
 	}
 	reverb_pos = 0;
+
+	// Clear reverb damping filter state
+	for (int i = 0; i < REVERB_COMB_COUNT; i++) {
+		reverb_damping_L[i] = 0;
+		reverb_damping_R[i] = 0;
+	}
 
 	// Clear stereo delay buffers
 	for (int i = 0; i < STEREO_DELAY_SIZE; i++) {
@@ -253,7 +263,7 @@ void AudioEffects::ProcessFMChorus(int &fm_L, int &fm_R) {
 	fm_chorus_buffer_R[fm_chorus_pos & CHORUS_BUFFER_MASK] = fm_R;
 
 	// LFO for chorus modulation (use existing sine table from OPM)
-	fm_chorus_lfo_phase += 2;  // Slow LFO ~1Hz @ 48kHz
+	fm_chorus_lfo_phase += (2 * 48000) / sample_rate;  // ~1Hz regardless of sample rate
 	int lfo = SINTBL[(fm_chorus_lfo_phase >> 2) & (SIZESINTBL-1)];
 
 	// Delay time based on chorus depth (1=Subtle, 2=Rich, 3=Wide)
@@ -319,14 +329,20 @@ void AudioEffects::ProcessReverb(int &L, int &R) {
 
 	for (int i = 0; i < REVERB_COMB_COUNT; i++) {
 		// Scale delay time based on reverb type (1=Small, 2=Medium, 3=Large, 4=Hall)
-		int delay = (comb_delays[i] * g_Config.reverb_type) >> 1;
+		// Also scale by sample rate to maintain consistent room size
+		int delay = (comb_delays[i] * g_Config.reverb_type * sample_rate) / (1 * 48000);
 
 		int comb_delayed_L = reverb_comb_buffer_L[i][(reverb_pos - delay) & REVERB_BUFFER_MASK];
 		int comb_delayed_R = reverb_comb_buffer_R[i][(reverb_pos - delay) & REVERB_BUFFER_MASK];
 
-		// Feedback with decay
-		int feedback_L = (comb_delayed_L * decay) >> 7;  // Divide by 128
-		int feedback_R = (comb_delayed_R * decay) >> 7;
+		// Apply damping filter (one-pole LPF) to simulate air absorption
+		// damping coefficient ~0.5 (7/8 of previous + 1/8 of current)
+		reverb_damping_L[i] = (reverb_damping_L[i] * 7 + comb_delayed_L) >> 3;
+		reverb_damping_R[i] = (reverb_damping_R[i] * 7 + comb_delayed_R) >> 3;
+
+		// Feedback with decay (using damped signal)
+		int feedback_L = (reverb_damping_L[i] * decay) >> 7;  // Divide by 128
+		int feedback_R = (reverb_damping_R[i] * decay) >> 7;
 
 		int new_val_L = L + feedback_L;
 		int new_val_R = R + feedback_R;

@@ -563,8 +563,11 @@ inline int Adpcm::GetPcm() {
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
 	// HPF formula: OutPcm = (InpPcm - InpPcm_prev) + feedback_coeff * OutPcm
+	// Coefficient is scaled by sample rate to maintain consistent cutoff frequency (~400Hz)
+	int hpf_coeff = HPF_COEFF_A1_22KHZ + ((Samprate - 22050) * 16) / 22050;
+	if (hpf_coeff > 505) hpf_coeff = 505;  // Max for ~400Hz at high rates
 	int hpf_diff = (InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT);
-	int hpf_feedback = HPF_COEFF_A1_22KHZ * OutPcm;
+	int hpf_feedback = hpf_coeff * OutPcm;
 	OutPcm = (hpf_diff + hpf_feedback) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 

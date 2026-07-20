@@ -528,7 +528,7 @@ inline void Op::Output0(int lfopitch, int lfolevel) {
 		LfoLevel = lfolevelame;
 	}
 
-	// Linear interpolation of sine table (OPM audio quality improvement)
+	// Sine table interpolation (OPM audio quality improvement)
 	int phase_total = T + Out2Fb;
 	int sin_val;
 	if (g_Config.opm_sine_interpolation) {
@@ -537,8 +537,13 @@ inline void Op::Output0(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		// Parabolic interpolation: eliminates 2nd harmonic distortion from linear interp
+		int mid = (sin0 + sin1) >> 1;
+		int diff = (sin0 - sin1) >> 1;
+		int correction = ((sin_prev + sin1 - (sin0<<1)) * phase_frac) >> (PRECISION_BITS+2);
+		sin_val = mid + ((diff * phase_frac) >> PRECISION_BITS) - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -624,7 +629,8 @@ inline void Op::Output32(int lfopitch, int lfolevel) {
 	} else {
 		NoiseCounter -= NoiseStep;
 		if (NoiseCounter <= 0) {
-			NoiseValue = (int)((irnd()>>30)&2)-1;
+			// Use bit 16 of 17-bit LFSR for -1/+1 noise value
+			NoiseValue = ((irnd() & 0x10000) ? 2 : 0) - 1;
 			NoiseCounter += NoiseCycle;
 		}
 
@@ -654,7 +660,7 @@ inline void Op::Output0_22(int lfopitch, int lfolevel) {
 		LfoLevel = lfolevelame;
 	}
 
-	// Linear interpolation of sine table (OPM audio quality improvement)
+	// Sine table interpolation (OPM audio quality improvement)
 	int phase_total = T + Out2Fb;
 	int sin_val;
 	if (g_Config.opm_sine_interpolation) {
@@ -663,8 +669,13 @@ inline void Op::Output0_22(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
+		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		// Parabolic interpolation: eliminates 2nd harmonic distortion from linear interp
+		int mid = (sin0 + sin1) >> 1;
+		int diff = (sin0 - sin1) >> 1;
+		int correction = ((sin_prev + sin1 - (sin0<<1)) * phase_frac) >> (PRECISION_BITS+2);
+		sin_val = mid + ((diff * phase_frac) >> PRECISION_BITS) - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -748,7 +759,8 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 	} else {
 		NoiseCounter -= NoiseStep;
 		if (NoiseCounter <= 0) {
-			NoiseValue = (int)((irnd()>>30)&2)-1;
+			// Use bit 16 of 17-bit LFSR for -1/+1 noise value
+			NoiseValue = ((irnd() & 0x10000) ? 2 : 0) - 1;
 			NoiseCounter += NoiseCycle;
 		}
 
