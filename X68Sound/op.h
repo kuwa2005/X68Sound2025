@@ -539,11 +539,17 @@ inline void Op::Output0(int lfopitch, int lfolevel) {
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
 		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Parabolic interpolation: eliminates 2nd harmonic distortion from linear interp
-		int mid = (sin0 + sin1) >> 1;
-		int diff = (sin0 - sin1) >> 1;
-		int correction = ((sin_prev + sin1 - (sin0<<1)) * phase_frac) >> (PRECISION_BITS+2);
-		sin_val = mid + ((diff * phase_frac) >> PRECISION_BITS) - correction;
+		// Linear interpolation (baseline)
+		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
+		// This eliminates 2nd harmonic distortion from linear interpolation
+		int second_deriv = sin_prev - (sin0 << 1) + sin1;
+		int t = phase_frac;
+		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
+		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+		sin_val = linear - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -671,11 +677,17 @@ inline void Op::Output0_22(int lfopitch, int lfolevel) {
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
 		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Parabolic interpolation: eliminates 2nd harmonic distortion from linear interp
-		int mid = (sin0 + sin1) >> 1;
-		int diff = (sin0 - sin1) >> 1;
-		int correction = ((sin_prev + sin1 - (sin0<<1)) * phase_frac) >> (PRECISION_BITS+2);
-		sin_val = mid + ((diff * phase_frac) >> PRECISION_BITS) - correction;
+		// Linear interpolation (baseline)
+		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+
+		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
+		// This eliminates 2nd harmonic distortion from linear interpolation
+		int second_deriv = sin_prev - (sin0 << 1) + sin1;
+		int t = phase_frac;
+		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
+		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+
+		sin_val = linear - correction;
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
