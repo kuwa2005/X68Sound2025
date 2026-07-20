@@ -75,6 +75,11 @@ struct X68SoundConfig {
 	// Soft clipping/limiter (prevent clipping when master volume is high)
 	int soft_clipping_enable;        // Enable soft clipping (0=OFF, 1=ON, default: 1)
 	int soft_clipping_threshold;     // Soft clipping threshold (50-100%, default: 85)
+
+	// High-quality FM synthesis (optional, OFF by default for compatibility)
+	int hq_sine_table;               // Use 4096-entry sine table with parabolic interpolation (0=OFF, 1=ON, default: 0)
+	int lfsr_noise;                  // Use LFSR noise generator (0=OFF, 1=ON, default: 0)
+	int dithering;                   // Enable TPDF dithering (0=OFF, 1=ON, default: 0)
 };
 
 // Global configuration instance
@@ -133,7 +138,12 @@ X68SoundConfig g_Config = {
 
 	// Soft clipping
 	1,      // soft_clipping_enable (default: ON to prevent clipping)
-	85      // soft_clipping_threshold (default: 85%)
+	85,     // soft_clipping_threshold (default: 85%)
+
+	// High-quality FM synthesis (OFF by default for compatibility)
+	0,      // hq_sine_table (default: OFF)
+	0,      // lfsr_noise (default: OFF)
+	0       // dithering (default: OFF)
 };
 
 // Helper function to read environment variable as integer
@@ -213,6 +223,11 @@ inline void LoadConfigFromEnvironment() {
 	// Soft clipping
 	g_Config.soft_clipping_enable = GetEnvInt("X68SOUND_SOFT_CLIPPING", 1);
 	g_Config.soft_clipping_threshold = GetEnvInt("X68SOUND_SOFT_CLIPPING_THRESHOLD", 85);
+
+	// High-quality FM synthesis (OFF by default for compatibility)
+	g_Config.hq_sine_table = GetEnvInt("X68SOUND_HQ_SINE", 0);
+	g_Config.lfsr_noise = GetEnvInt("X68SOUND_LFSR_NOISE", 0);
+	g_Config.dithering = GetEnvInt("X68SOUND_DITHERING", 0);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -313,6 +328,11 @@ inline void LoadConfigFromEnvironment() {
 	if (g_Config.soft_clipping_threshold < 50) g_Config.soft_clipping_threshold = 50;
 	if (g_Config.soft_clipping_threshold > 100) g_Config.soft_clipping_threshold = 100;
 
+	// Validate high-quality FM synthesis options
+	g_Config.hq_sine_table = (g_Config.hq_sine_table != 0) ? 1 : 0;
+	g_Config.lfsr_noise = (g_Config.lfsr_noise != 0) ? 1 : 0;
+	g_Config.dithering = (g_Config.dithering != 0) ? 1 : 0;
+
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {
 		char logMsg[768];
@@ -357,7 +377,7 @@ inline void LoadConfigFromEnvironment() {
 #define	SIZEALPHATBL_BITS	(10)
 #define	SIZEALPHATBL	(1<<SIZEALPHATBL_BITS)
 
-#define	SIZESINTBL_BITS	(12)
+#define	SIZESINTBL_BITS	(10)
 #define	SIZESINTBL	(1<<SIZESINTBL_BITS)
 #define	MAXSINVAL	(1<<(SIZESINTBL_BITS+2))
 
@@ -378,7 +398,7 @@ int	STEPTBL[11*12*64];
 //int	STEPTBL3[11*12*64];
 #define	ALPHAZERO	(SIZEALPHATBL*3)
 unsigned short	ALPHATBL[ALPHAZERO+SIZEALPHATBL+1];
-int	SINTBL[SIZESINTBL];
+short	SINTBL[SIZESINTBL];
 const int STEPTBL_O2[12*64] = {
 	1299,1300,1301,1302,1303,1304,1305,1306,
 	1308,1309,1310,1311,1313,1314,1315,1316,

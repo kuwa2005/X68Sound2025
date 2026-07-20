@@ -537,19 +537,20 @@ inline void Op::Output0(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Linear interpolation (baseline)
-		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
-		// This eliminates 2nd harmonic distortion from linear interpolation
-		int second_deriv = sin_prev - (sin0 << 1) + sin1;
-		int t = phase_frac;
-		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
-		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-		sin_val = linear - correction;
+		if (g_Config.hq_sine_table) {
+			// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			sin_val = linear - correction;
+		} else {
+			// Linear interpolation (original behavior, default)
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		}
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -591,19 +592,20 @@ inline void Op::Output(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Linear interpolation (baseline)
-		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
-		// This eliminates 2nd harmonic distortion from linear interpolation
-		int second_deriv = sin_prev - (sin0 << 1) + sin1;
-		int t = phase_frac;
-		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
-		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-		sin_val = linear - correction;
+		if (g_Config.hq_sine_table) {
+			// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			sin_val = linear - correction;
+		} else {
+			// Linear interpolation (original behavior, default)
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		}
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -637,18 +639,20 @@ inline void Op::Output32(int lfopitch, int lfolevel) {
 
 			int sin0 = SINTBL[phase_index];
 			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-			// Linear interpolation (baseline)
-			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-			// Parabolic correction
-			int second_deriv = sin_prev - (sin0 << 1) + sin1;
-			int t = phase_frac;
-			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-			sin_val = linear - correction;
+			if (g_Config.hq_sine_table) {
+				// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+				int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+				int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+				int second_deriv = sin_prev - (sin0 << 1) + sin1;
+				int t = phase_frac;
+				int t_inv = (1 << PRECISION_BITS) - t;
+				int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+				sin_val = linear - correction;
+			} else {
+				// Linear interpolation (original behavior, default)
+				sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			}
 		} else {
 			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 		}
@@ -656,8 +660,7 @@ inline void Op::Output32(int lfopitch, int lfolevel) {
 	} else {
 		NoiseCounter -= NoiseStep;
 		if (NoiseCounter <= 0) {
-			// Use bit 16 of 17-bit LFSR for -1/+1 noise value
-			NoiseValue = ((irnd() & 0x10000) ? 2 : 0) - 1;
+			NoiseValue = (int)((irnd()>>30)&2)-1;
 			NoiseCounter += NoiseCycle;
 		}
 
@@ -696,19 +699,20 @@ inline void Op::Output0_22(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Linear interpolation (baseline)
-		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
-		// This eliminates 2nd harmonic distortion from linear interpolation
-		int second_deriv = sin_prev - (sin0 << 1) + sin1;
-		int t = phase_frac;
-		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
-		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-		sin_val = linear - correction;
+		if (g_Config.hq_sine_table) {
+			// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			sin_val = linear - correction;
+		} else {
+			// Linear interpolation (original behavior, default)
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		}
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -748,19 +752,20 @@ inline void Op::Output_22(int lfopitch, int lfolevel) {
 
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Linear interpolation (baseline)
-		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-		// Parabolic correction: (y[-1] - 2*y[0] + y[1]) * t * (t-1) / 2
-		// This eliminates 2nd harmonic distortion from linear interpolation
-		int second_deriv = sin_prev - (sin0 << 1) + sin1;
-		int t = phase_frac;
-		int t_inv = (1 << PRECISION_BITS) - t;  // (1 - t)
-		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-		sin_val = linear - correction;
+		if (g_Config.hq_sine_table) {
+			// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			sin_val = linear - correction;
+		} else {
+			// Linear interpolation (original behavior, default)
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		}
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -794,18 +799,20 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 
 			int sin0 = SINTBL[phase_index];
 			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-			// Linear interpolation (baseline)
-			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-			// Parabolic correction
-			int second_deriv = sin_prev - (sin0 << 1) + sin1;
-			int t = phase_frac;
-			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-			sin_val = linear - correction;
+			if (g_Config.hq_sine_table) {
+				// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+				int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+				int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+				int second_deriv = sin_prev - (sin0 << 1) + sin1;
+				int t = phase_frac;
+				int t_inv = (1 << PRECISION_BITS) - t;
+				int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+				sin_val = linear - correction;
+			} else {
+				// Linear interpolation (original behavior, default)
+				sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			}
 		} else {
 			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 		}
@@ -813,8 +820,7 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 	} else {
 		NoiseCounter -= NoiseStep;
 		if (NoiseCounter <= 0) {
-			// Use bit 16 of 17-bit LFSR for -1/+1 noise value
-			NoiseValue = ((irnd() & 0x10000) ? 2 : 0) - 1;
+			NoiseValue = (int)((irnd()>>30)&2)-1;
 			NoiseCounter += NoiseCycle;
 		}
 
@@ -855,18 +861,20 @@ inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffs
 		int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Linear interpolation (baseline)
-		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-		// Parabolic correction
-		int second_deriv = sin_prev - (sin0 << 1) + sin1;
-		int t = phase_frac;
-		int t_inv = (1 << PRECISION_BITS) - t;
-		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-		sin_val = linear - correction;
+		if (g_Config.hq_sine_table) {
+			// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			sin_val = linear - correction;
+		} else {
+			// Linear interpolation (original behavior, default)
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		}
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -897,18 +905,20 @@ inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffse
 		int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
 		int sin0 = SINTBL[phase_index];
 		int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-		int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-		// Linear interpolation (baseline)
-		int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-		// Parabolic correction
-		int second_deriv = sin_prev - (sin0 << 1) + sin1;
-		int t = phase_frac;
-		int t_inv = (1 << PRECISION_BITS) - t;
-		int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-		sin_val = linear - correction;
+		if (g_Config.hq_sine_table) {
+			// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			int second_deriv = sin_prev - (sin0 << 1) + sin1;
+			int t = phase_frac;
+			int t_inv = (1 << PRECISION_BITS) - t;
+			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			sin_val = linear - correction;
+		} else {
+			// Linear interpolation (original behavior, default)
+			sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+		}
 	} else {
 		sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 	}
@@ -940,18 +950,20 @@ inline void Op::Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoff
 			int phase_frac = phase_total & ((1<<PRECISION_BITS)-1);
 			int sin0 = SINTBL[phase_index];
 			int sin1 = SINTBL[(phase_index+1) & (SIZESINTBL-1)];
-			int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
 
-			// Linear interpolation (baseline)
-			int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
-
-			// Parabolic correction
-			int second_deriv = sin_prev - (sin0 << 1) + sin1;
-			int t = phase_frac;
-			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
-
-			sin_val = linear - correction;
+			if (g_Config.hq_sine_table) {
+				// Parabolic interpolation (higher quality, requires X68SOUND_HQ_SINE=1)
+				int sin_prev = SINTBL[(phase_index-1) & (SIZESINTBL-1)];
+				int linear = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+				int second_deriv = sin_prev - (sin0 << 1) + sin1;
+				int t = phase_frac;
+				int t_inv = (1 << PRECISION_BITS) - t;
+				int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+				sin_val = linear - correction;
+			} else {
+				// Linear interpolation (original behavior, default)
+				sin_val = sin0 + (((sin1 - sin0) * phase_frac) >> PRECISION_BITS);
+			}
 		} else {
 			sin_val = (int)(SINTBL[(phase_total >> PRECISION_BITS) & (SIZESINTBL-1)]);
 		}

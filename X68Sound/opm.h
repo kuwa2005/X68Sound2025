@@ -1174,8 +1174,22 @@ inline void Opm::pcmset62(int ndata) {
 
 
 
-			OutInpOpm[0] = ApplySoftClipping(OutInpOpm[0], g_Config.soft_clipping_threshold);
-			OutInpOpm[1] = ApplySoftClipping(OutInpOpm[1], g_Config.soft_clipping_threshold);
+			#define	PCM_LIMITS	((1<<15)-1)
+			if ((unsigned int)(OutInpOpm[0]+PCM_LIMITS) > (unsigned int)(PCM_LIMITS*2)) {
+				if ((int)(OutInpOpm[0]+PCM_LIMITS) >= (int)(PCM_LIMITS*2)) {
+					OutInpOpm[0] = PCM_LIMITS;
+				} else {
+					OutInpOpm[0] = -PCM_LIMITS;
+				}
+			}
+			if ((unsigned int)(OutInpOpm[1]+PCM_LIMITS) > (unsigned int)(PCM_LIMITS*2)) {
+				if ((int)(OutInpOpm[1]+PCM_LIMITS) >= (int)(PCM_LIMITS*2)) {
+					OutInpOpm[1] = PCM_LIMITS;
+				} else {
+					OutInpOpm[1] = -PCM_LIMITS;
+				}
+			}
+			#undef PCM_LIMITS
 
 			--InpOpm_idx;
 			if (InpOpm_idx < 0) InpOpm_idx=OPMLPF_COL-1;
@@ -1185,18 +1199,11 @@ inline void Opm::pcmset62(int ndata) {
 			InpOpmBuf1[InpOpm_idx+OPMLPF_COL] = (short)OutInpOpm[1];
 		}
 
-		// Apply FIR lowpass filter (skip at high sample rates where aliasing is less problematic)
-		if (Samprate <= 48000) {
-			OpmFir(OpmLPFp, &InpOpmBuf0[InpOpm_idx], &InpOpmBuf1[InpOpm_idx], OutOpm);
+		OpmFir(OpmLPFp, &InpOpmBuf0[InpOpm_idx], &InpOpmBuf1[InpOpm_idx], OutOpm);
 
-			OpmLPFp += OPMLPF_COL;
-			if (OpmLPFp >= OPMLOWPASS[OPMLPF_ROW]) {
-				OpmLPFp = OPMLOWPASS[0];
-			}
-		} else {
-			// At 96kHz/192kHz, bypass FIR filter - output is already oversampled
-			OutOpm[0] = InpOpmBuf0[InpOpm_idx];
-			OutOpm[1] = InpOpmBuf1[InpOpm_idx];
+		OpmLPFp += OPMLPF_COL;
+		if (OpmLPFp >= OPMLOWPASS[OPMLPF_ROW]) {
+			OpmLPFp = OPMLOWPASS[0];
 		}
 
 
@@ -1231,13 +1238,6 @@ inline void Opm::pcmset62(int ndata) {
 				Out[1] = -32767;
 			}
 		}
-
-		// Apply TPDF dithering to reduce quantization noise floor
-		// Triangular probability density function: -1, 0, or +1
-		int dither_L = ((irnd() & 1) + (irnd() & 1)) - 1;
-		int dither_R = ((irnd() & 1) + (irnd() & 1)) - 1;
-		Out[0] += dither_L;
-		Out[1] += dither_R;
 
 		// Apply audio effects processing
 		// Note: FM is in OutOpm[], ADPCM is in OutOutAdpcm[], PCM8 is part of OutOutAdpcm[]
@@ -1791,13 +1791,6 @@ inline void Opm::pcmset22(int ndata) {
 				Out[1] = -32767;
 			}
 		}
-
-		// Apply TPDF dithering to reduce quantization noise floor
-		// Triangular probability density function: -1, 0, or +1
-		int dither_L = ((irnd() & 1) + (irnd() & 1)) - 1;
-		int dither_R = ((irnd() & 1) + (irnd() & 1)) - 1;
-		Out[0] += dither_L;
-		Out[1] += dither_R;
 
 		// Apply audio effects processing
 		// Note: FM is in OutOpm[], ADPCM is in OutOutAdpcm[], PCM8 is part of OutOutAdpcm[]
