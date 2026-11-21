@@ -12,6 +12,7 @@
 #include	"lfo.h"
 #include	"adpcm.h"
 #include	"pcm8.h"
+#include	"dsp.h"
 #include	"audioeffects.h"
 #include	"opm.h"
 
@@ -291,6 +292,22 @@ extern "C" int X68Sound_ErrorCode() {
 }
 extern "C" int X68Sound_DebugValue() {
 	return DebugValue;
+}
+
+// ---------------------------------------------------------------------------
+// For static linking (e.g. mxwav on Linux/Windows): DllMain() is not called,
+// so the host must call X68Sound_InitConfig() once before X68Sound_Start*().
+// Not exported from the DLL (not in x68sound.def).
+// ---------------------------------------------------------------------------
+extern "C" void X68Sound_InitConfig() {
+	LoadConfigFromEnvironment();
+	DebugLog_Init();
+}
+
+// Actual output sampling rate after Start/StartPcm. May differ from the
+// requested rate when X68SOUND_OUTPUT_RATE is set.
+extern "C" int X68Sound_GetSamprate() {
+	return WaveOutSamp;
 }
 
 extern "C" void X68Sound_TimerA() {

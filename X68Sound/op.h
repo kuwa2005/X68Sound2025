@@ -40,6 +40,7 @@ private:
 
 	int	Out2Fb;
 	int	Inp_last;
+	int	TOct[2];	// Independent phase accumulators for octave layering (0=upper, 1=lower)
 	int	Fl;
 	int	Fl_mask;
 	int	ArTime;
@@ -152,6 +153,7 @@ inline void Op::Init() {
 	DeltaT = 0;
 	LfoPitch = CULC_DELTA_T;
 	T = 0;
+	TOct[0] = TOct[1] = 0;
 	LfoLevel = CULC_ALPHA;
 	Alpha = 0;
 	Tl = (128-127)<<3;
@@ -385,6 +387,7 @@ inline void Op::KeyON(int csm) {
 		if (Xr_stat >= RELEASE) {
 			// KEYON
 			T = 0;
+			TOct[0] = TOct[1] = 0;
 
 			if (Xr_el == 0) {
 				Xr_stat = DECAY;
@@ -545,7 +548,8 @@ inline void Op::Output0(int lfopitch, int lfolevel) {
 			int second_deriv = sin_prev - (sin0 << 1) + sin1;
 			int t = phase_frac;
 			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 			sin_val = linear - correction;
 		} else {
 			// Linear interpolation (original behavior, default)
@@ -600,7 +604,8 @@ inline void Op::Output(int lfopitch, int lfolevel) {
 			int second_deriv = sin_prev - (sin0 << 1) + sin1;
 			int t = phase_frac;
 			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 			sin_val = linear - correction;
 		} else {
 			// Linear interpolation (original behavior, default)
@@ -647,7 +652,8 @@ inline void Op::Output32(int lfopitch, int lfolevel) {
 				int second_deriv = sin_prev - (sin0 << 1) + sin1;
 				int t = phase_frac;
 				int t_inv = (1 << PRECISION_BITS) - t;
-				int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+				// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 				sin_val = linear - correction;
 			} else {
 				// Linear interpolation (original behavior, default)
@@ -707,7 +713,8 @@ inline void Op::Output0_22(int lfopitch, int lfolevel) {
 			int second_deriv = sin_prev - (sin0 << 1) + sin1;
 			int t = phase_frac;
 			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 			sin_val = linear - correction;
 		} else {
 			// Linear interpolation (original behavior, default)
@@ -760,7 +767,8 @@ inline void Op::Output_22(int lfopitch, int lfolevel) {
 			int second_deriv = sin_prev - (sin0 << 1) + sin1;
 			int t = phase_frac;
 			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 			sin_val = linear - correction;
 		} else {
 			// Linear interpolation (original behavior, default)
@@ -807,7 +815,8 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 				int second_deriv = sin_prev - (sin0 << 1) + sin1;
 				int t = phase_frac;
 				int t_inv = (1 << PRECISION_BITS) - t;
-				int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+				// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 				sin_val = linear - correction;
 			} else {
 				// Linear interpolation (original behavior, default)
@@ -842,13 +851,19 @@ inline void Op::Output32_22(int lfopitch, int lfolevel) {
 
 inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffset) {
 	// Calculate DeltaT with pitch offset
-	int shifted_pitch = Pitch + pitchoffset;
-	// Clamp to valid range
-	if (shifted_pitch < 0) shifted_pitch = 0;
-	if (shifted_pitch > KC_KF_DT2_MAX) shifted_pitch = KC_KF_DT2_MAX;
+	// Clamp the final table index (pitch + offset + LFO) to the STEPTBL range.
+	// Previously only pitch+offset was clamped, so a negative LFO pitch value at
+	// low notes produced a negative index (out-of-bounds read -> random pitch).
+	int step_idx = Pitch + pitchoffset + lfopitch;
+	if (step_idx < 0) step_idx = 0;
+	if (step_idx > 11*12*64-1) step_idx = 11*12*64-1;
 
-	int deltaT = ((STEPTBL[shifted_pitch + lfopitch] + Dt1Pitch) * Mul) >> (6+1);
-	int tempT = T + deltaT;
+	int deltaT = ((STEPTBL[step_idx] + Dt1Pitch) * Mul) >> (6+1);
+	// Use an independent phase accumulator per layer so the layer really plays
+	// at the shifted pitch (T + deltaT only gave the original pitch, phase-shifted).
+	int layer = (pitchoffset > 0) ? 0 : 1;
+	TOct[layer] += deltaT;
+	int tempT = TOct[layer];
 
 	int lfolevelame = lfolevel & Ame;
 	int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
@@ -869,7 +884,8 @@ inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffs
 			int second_deriv = sin_prev - (sin0 << 1) + sin1;
 			int t = phase_frac;
 			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 			sin_val = linear - correction;
 		} else {
 			// Linear interpolation (original behavior, default)
@@ -886,13 +902,19 @@ inline void Op::Output0WithPitchOffset(int lfopitch, int lfolevel, int pitchoffs
 
 inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffset) {
 	// Calculate DeltaT with pitch offset
-	int shifted_pitch = Pitch + pitchoffset;
-	// Clamp to valid range
-	if (shifted_pitch < 0) shifted_pitch = 0;
-	if (shifted_pitch > KC_KF_DT2_MAX) shifted_pitch = KC_KF_DT2_MAX;
+	// Clamp the final table index (pitch + offset + LFO) to the STEPTBL range.
+	// Previously only pitch+offset was clamped, so a negative LFO pitch value at
+	// low notes produced a negative index (out-of-bounds read -> random pitch).
+	int step_idx = Pitch + pitchoffset + lfopitch;
+	if (step_idx < 0) step_idx = 0;
+	if (step_idx > 11*12*64-1) step_idx = 11*12*64-1;
 
-	int deltaT = ((STEPTBL[shifted_pitch + lfopitch] + Dt1Pitch) * Mul) >> (6+1);
-	int tempT = T + deltaT;
+	int deltaT = ((STEPTBL[step_idx] + Dt1Pitch) * Mul) >> (6+1);
+	// Use an independent phase accumulator per layer so the layer really plays
+	// at the shifted pitch (T + deltaT only gave the original pitch, phase-shifted).
+	int layer = (pitchoffset > 0) ? 0 : 1;
+	TOct[layer] += deltaT;
+	int tempT = TOct[layer];
 
 	int lfolevelame = lfolevel & Ame;
 	int alpha = (int)(ALPHATBL[ALPHAZERO + Tl - Xr_el - lfolevelame]);
@@ -913,7 +935,8 @@ inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffse
 			int second_deriv = sin_prev - (sin0 << 1) + sin1;
 			int t = phase_frac;
 			int t_inv = (1 << PRECISION_BITS) - t;
-			int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+			// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 			sin_val = linear - correction;
 		} else {
 			// Linear interpolation (original behavior, default)
@@ -929,13 +952,19 @@ inline void Op::OutputWithPitchOffset(int lfopitch, int lfolevel, int pitchoffse
 
 inline void Op::Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoffset) {
 	// Calculate DeltaT with pitch offset
-	int shifted_pitch = Pitch + pitchoffset;
-	// Clamp to valid range
-	if (shifted_pitch < 0) shifted_pitch = 0;
-	if (shifted_pitch > KC_KF_DT2_MAX) shifted_pitch = KC_KF_DT2_MAX;
+	// Clamp the final table index (pitch + offset + LFO) to the STEPTBL range.
+	// Previously only pitch+offset was clamped, so a negative LFO pitch value at
+	// low notes produced a negative index (out-of-bounds read -> random pitch).
+	int step_idx = Pitch + pitchoffset + lfopitch;
+	if (step_idx < 0) step_idx = 0;
+	if (step_idx > 11*12*64-1) step_idx = 11*12*64-1;
 
-	int deltaT = ((STEPTBL[shifted_pitch + lfopitch] + Dt1Pitch) * Mul) >> (6+1);
-	int tempT = T + deltaT;
+	int deltaT = ((STEPTBL[step_idx] + Dt1Pitch) * Mul) >> (6+1);
+	// Use an independent phase accumulator per layer so the layer really plays
+	// at the shifted pitch (T + deltaT only gave the original pitch, phase-shifted).
+	int layer = (pitchoffset > 0) ? 0 : 1;
+	TOct[layer] += deltaT;
+	int tempT = TOct[layer];
 
 	int o;
 	if (NoiseCycle == 0) {
@@ -958,7 +987,8 @@ inline void Op::Output32WithPitchOffset(int lfopitch, int lfolevel, int pitchoff
 				int second_deriv = sin_prev - (sin0 << 1) + sin1;
 				int t = phase_frac;
 				int t_inv = (1 << PRECISION_BITS) - t;
-				int correction = (second_deriv * t * t_inv) >> (PRECISION_BITS + 2);
+				// t*(1-t)/2 in fixed point: >> (2*PRECISION_BITS + 1)
+			int correction = (second_deriv * t * t_inv) >> (2*PRECISION_BITS + 1);
 				sin_val = linear - correction;
 			} else {
 				// Linear interpolation (original behavior, default)

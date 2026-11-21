@@ -9,6 +9,9 @@
 
 [リリース一覧](https://github.com/kuwa2005/X68Sound2025/releases)
 
+- MDX→WAV 変換ツール **mxwav**（MXDRVg + X68Sound2025、Windows / Linux 対応）を同梱しています → [mxwav/README.md](mxwav/README.md)
+- テストは `tests/run_tests.sh`（Linux）で、本体の実ソースのテストと mxwav の変換テストをまとめて実行できます
+
 ## 🎵 最高音質で使う（推奨設定）
 
 X68Sound2025を最高音質で使うには、アプリケーション起動前に以下の環境変数を設定してください：
