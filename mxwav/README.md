@@ -57,6 +57,11 @@ mxwav.exe -S48000 song.mdx
 
 Linux 版は**完全な静的リンクの単一ファイル**（約1.2MB）です。`build/linux/mxwav` の1ファイルをコピーするだけで、共有ライブラリやロケール、iconv なしで、どの x86_64 Linux でも動きます。Shift_JIS の変換表は実行ファイルに埋め込んでいます（`src/cp932_table.h`、生成スクリプトは `tools/gen_cp932_table.py`）。ビルドには g++ と静的版の C/C++ ライブラリ（通常は g++ に同梱）が必要です。
 
+```sh
+# Debian / Ubuntu の場合（静的ライブラリも含まれます）
+sudo apt install g++
+```
+
 ### 64bit 対応について
 MXDRVg は 68000 のアセンブラをほぼそのまま C に変換したもので、アドレスを 32bit のデータレジスタ（D0〜D7）や DMA レジスタに入れて扱います。
 64bit 環境で正しく動かすため、次のようにしています。
