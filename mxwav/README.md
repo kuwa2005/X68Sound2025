@@ -55,7 +55,7 @@ mxwav.exe -S48000 song.mdx
 | Windows 64bit（MinGW） | `./build.sh windows64` | `build/win64/mxwav.exe` |
 | Windows（Visual Studio 2022） | `build_vc2022.bat`（x86）／`build_vc2022.bat x64` | `build\vc_x86\mxwav.exe` など |
 
-Linux では g++ と iconv（glibc に同梱）を使います。
+Linux 版は**完全な静的リンクの単一ファイル**（約1.2MB）です。`build/linux/mxwav` の1ファイルをコピーするだけで、共有ライブラリやロケール、iconv なしで、どの x86_64 Linux でも動きます。Shift_JIS の変換表は実行ファイルに埋め込んでいます（`src/cp932_table.h`、生成スクリプトは `tools/gen_cp932_table.py`）。ビルドには g++ と静的版の C/C++ ライブラリ（通常は g++ に同梱）が必要です。
 
 ### 64bit 対応について
 MXDRVg は 68000 のアセンブラをほぼそのまま C に変換したもので、アドレスを 32bit のデータレジスタ（D0〜D7）や DMA レジスタに入れて扱います。

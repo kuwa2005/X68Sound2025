@@ -19,8 +19,10 @@ build_linux() {
 	mkdir -p build/linux
 	# -no-pie: MXDRVg static work areas must be in the low 4GB (see src/lowmem.h)
 	${CXX:-g++} $COMMON -I$ROOT/compat/linux -fno-pie -c $X68SRC -o build/linux/X68Sound.o
+	# fully static: the single "mxwav" file runs on any x86_64 Linux (no shared libraries)
 	${CXX:-g++} $COMMON -I$ROOT/compat/linux -fno-pie $SRC build/linux/X68Sound.o \
-		-o build/linux/mxwav -no-pie -lpthread
+		-o build/linux/mxwav -static -no-pie -pthread
+	strip build/linux/mxwav 2>/dev/null || true
 	echo "built: build/linux/mxwav"
 }
 

@@ -26,7 +26,7 @@
 #include <windows.h>
 #else
 #include <dirent.h>
-#include <iconv.h>
+#include "cp932_table.h"	// embedded CP932 table: no iconv/locale needed (static binary)
 #include <unistd.h>
 #include <limits.h>
 #include <strings.h>
@@ -115,19 +115,28 @@ static std::string SjisToUtf8(const std::string &s) {
 	WideCharToMultiByte(CP_UTF8, 0, w.data(), wn, &out[0], un, NULL, NULL);
 	return out;
 #else
-	iconv_t cd = iconv_open("UTF-8", "CP932");
-	if (cd == (iconv_t)-1) return s;
-	std::string in(s), out(s.size() * 4 + 16, '\0');
-	char *ip = &in[0], *op = &out[0];
-	size_t il = in.size(), ol = out.size();
-	while (il > 0) {
-		if (iconv(cd, &ip, &il, &op, &ol) == (size_t)-1) {
-			if (ol == 0) break;
-			*op++ = '?'; --ol; ++ip; --il;   // skip invalid byte
+	std::string out;
+	auto put = [&](unsigned cp) {
+		if (cp < 0x80) out += (char)cp;
+		else if (cp < 0x800) { out += (char)(0xC0 | (cp >> 6)); out += (char)(0x80 | (cp & 0x3F)); }
+		else { out += (char)(0xE0 | (cp >> 12)); out += (char)(0x80 | ((cp >> 6) & 0x3F)); out += (char)(0x80 | (cp & 0x3F)); }
+	};
+	for (size_t i = 0; i < s.size(); ++i) {
+		unsigned char c = (unsigned char)s[i];
+		if (c < 0x80) { put(c); continue; }
+		if (c >= 0xA1 && c <= 0xDF) { put(0xFF61 + (c - 0xA1)); continue; }   // half-width katakana
+		int li = (c >= 0x81 && c <= 0x9F) ? c - 0x81 : (c >= 0xE0 && c <= 0xFC) ? c - 0xE0 + 31 : -1;
+		if (li >= 0 && i + 1 < s.size()) {
+			unsigned char t = (unsigned char)s[i + 1];
+			if (t >= 0x40 && t <= 0xFC) {
+				unsigned cp = CP932_TABLE[li * 189 + (t - 0x40)];
+				put(cp ? cp : '?');
+				++i;
+				continue;
+			}
 		}
+		put('?');
 	}
-	iconv_close(cd);
-	out.resize(out.size() - ol);
 	return out;
 #endif
 }

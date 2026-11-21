@@ -24,7 +24,7 @@ CXX      ?= g++
 LIN_OUT  := build/linux
 # -no-pie: static data (MXDRVg work areas) must be in the low 4GB (see lowmem.h)
 LIN_FLAGS := $(COMMON) -I$(ROOT)/compat/linux -fno-pie
-LIN_LDFLAGS := -no-pie -lpthread
+LIN_LDFLAGS := -static -no-pie -pthread	# single self-contained binary
 
 $(LIN_OUT)/mxwav: $(SRC) $(X68SRC) $(wildcard src/*.h src/mxdrv/*.h $(X68DIR)/*.h)
 	@mkdir -p $(LIN_OUT)
