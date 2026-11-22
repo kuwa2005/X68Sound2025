@@ -47,7 +47,7 @@ extern "C" int X68Sound_DebugValue();
 extern "C" void X68Sound_SetMask(int mask);
 extern "C" void X68Sound_TimerA();
 
-// Static-link helpers (not exported from the DLL)
+// Config reload / actual output rate (DLL exports @36/@37)
 extern "C" void X68Sound_InitConfig();
 extern "C" int X68Sound_GetSamprate();
 

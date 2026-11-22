@@ -297,11 +297,12 @@ extern "C" int X68Sound_DebugValue() {
 // ---------------------------------------------------------------------------
 // For static linking (e.g. mxwav on Linux/Windows): DllMain() is not called,
 // so the host must call X68Sound_InitConfig() once before X68Sound_Start*().
-// Not exported from the DLL (not in x68sound.def).
+// Also exported from the DLL (x68sound.def @36/@37) for hosts such as mxwav
+// that want to re-read X68SOUND_* after changing the environment.
 // ---------------------------------------------------------------------------
 extern "C" void X68Sound_InitConfig() {
 	LoadConfigFromEnvironment();
-	DebugLog_Init();
+	if (!g_DebugLogFile) DebugLog_Init();	// DLL: already opened in DllMain
 }
 
 // Actual output sampling rate after Start/StartPcm. May differ from the

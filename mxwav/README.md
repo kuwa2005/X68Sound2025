@@ -46,6 +46,35 @@ mxwav.exe -S48000 song.mdx
 - **PDX の検索（Linux）**：大文字小文字を区別せずに探します（例：`TEST.PDX` と `test.pdx` を同一視）。Shift_JIS のファイル名は UTF-8 に変換した名前でも探します。
 - **進捗表示**：経過時間を実際のサンプリングレートで計算します（オリジナルは常に 44.1kHz として計算していました）。
 
+## 配布物の構成（Windows）
+
+| フォルダ | ファイル | 内容 |
+|---|---|---|
+| `x64/` | `mxwav64.exe` + `X68Sound.dll` | **DLL 版（64bit）**。同じフォルダの X68Sound2025 の `X68Sound.dll`（x64）を読み込んで変換します。DLL を差し替えればその音で変換できます |
+| `x64/` | `mxwav64_*.bat` | mxwav64 用の一括変換バッチ（下記） |
+| `x86/` | `mxwav.exe` + `X68Sound.dll` | DLL 版（32bit）。32bit の `X68Sound.dll` を使います |
+| `standalone/` | `mxwav.exe` | DLL 不要の単体版（64bit、X68Sound2025 を内蔵） |
+
+DLL 版は X68Sound2025 以外の `X68Sound.dll`（fork 元など）でも動きます。ただし次の制限があります。
+- `X68SOUND_*` の音質設定と AI 補正は、X68Sound2025 でのみ有効です。
+- 64bit 版の ADPCM は、X68Sound2025 の DLL が必要です。
+
+### mxwav64 用の一括変換バッチ（`bat/mxwav64_*.bat`）
+リポジトリ直下の `start_*.bat`（再生用プリセット）と同じ音作りで、MDX を WAV に一括変換します。
+`mxwav64.exe` と同じフォルダに置き、MDX ファイル（複数可）をドラッグ＆ドロップすると、各 MDX と同じフォルダに WAV を作ります。
+
+| バッチ | 内容 | AI 補正 |
+|---|---|---|
+| `mxwav64_standard.bat` | 加工なし（44.1kHz） | なし |
+| `mxwav64_highquality_96kHz.bat` / `mxwav64_ultrahighquality_192kHz.bat` | 忠実志向のハイレゾ | あり |
+| `mxwav64_preset_music.bat` | 音楽鑑賞（96kHz） | あり |
+| `mxwav64_preset_headphone.bat` | ヘッドホン（96kHz） | あり |
+| `mxwav64_preset_gaming.bat` | 明瞭でパンチのある音（48kHz） | あり |
+| `mxwav64_preset_vintage.bat` | アナログ風（48kHz） | あり |
+
+AI による ADPCM 高音質化は、オフライン変換（mxwav）でだけ働きます。リアルタイム再生（`start_*.bat`）では無効です。
+バッチは `tools/gen_mxwav64_bat.py` で `start_*.bat` から自動生成しています。プリセットを変更したら、このスクリプトを実行して作り直してください。
+
 ## ビルド
 
 | 対象 | コマンド | 出力 |
@@ -53,6 +82,8 @@ mxwav.exe -S48000 song.mdx
 | Linux | `./build.sh` または `make` | `build/linux/mxwav` |
 | Windows 32bit（MinGW） | `./build.sh windows` | `build/win32/mxwav.exe` |
 | Windows 64bit（MinGW） | `./build.sh windows64` | `build/win64/mxwav.exe` |
+| Windows DLL 版 x64（MinGW） | `./build.sh windows64-dll` | `build/win64-dll/mxwav64.exe` + `X68Sound.dll` |
+| Windows DLL 版 x86（MinGW） | `./build.sh windows-dll` | `build/win32-dll/mxwav.exe` + `X68Sound.dll` |
 | Windows（Visual Studio 2022） | `build_vc2022.bat`（x86）／`build_vc2022.bat x64` | `build\vc_x86\mxwav.exe` など |
 
 Linux 版は**完全な静的リンクの単一ファイル**（約1.2MB）です。`build/linux/mxwav` の1ファイルをコピーするだけで、共有ライブラリやロケール、iconv なしで、どの x86_64 Linux でも動きます。Shift_JIS の変換表は実行ファイルに埋め込んでいます（`src/cp932_table.h`、生成スクリプトは `tools/gen_cp932_table.py`）。ビルドには g++ と静的版の C/C++ ライブラリ（通常は g++ に同梱）が必要です。
