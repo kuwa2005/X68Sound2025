@@ -1,72 +1,63 @@
 @echo off
-REM =========================================
-REM X68Sound2025 GAMING プリセット
-REM =========================================
+chcp 65001 > nul
+setlocal
+REM =========================================================================
+REM X68Sound2025 GAMING プリセット（ゲーム向け・低遅延, 48kHz）
+REM =========================================================================
+REM 低遅延を優先し、響きを付けずに輪郭のはっきりしたパンチのある音にします。
 REM
-REM ゲームプレイ用の設定です。
-REM 低レイテンシとパンチのある音を重視し、
-REM リバーブを無効化して明瞭度を最大限に引き出します。
-REM
-REM 【動作環境】
-REM - CPU: Intel Core i3以上 / AMD Ryzen 3以上
-REM - メモリ: 4GB以上
-REM - オーディオ: 48kHz対応
-REM
-REM =========================================
+REM 【使い方】
+REM   1. 下の APP= を、普段使っている MDX プレイヤー等のパスに書き換える
+REM   2. このファイルをダブルクリック（MDX ファイルをこのファイルに
+REM      ドラッグ＆ドロップすると、そのファイルを引数として渡します）
+REM   ※ 設定はこのバッチ内だけで有効です（setlocal）。
+REM =========================================================================
 
-echo X68Sound2025 GAMING プリセットを適用中...
-echo.
+set "APP=your_application.exe"
 
-REM 【標準出力】48kHz（低レイテンシ）
+REM ---- 基本の高音質化（リアルタイム再生でも負荷は小さい） ----------------
+REM OPM 正弦波補間（1=線形, HQ_SINE=1 で放物線補間）
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_HQ_SINE=0
+REM PCM8 の音量変化時のクリックノイズ除去
+set X68SOUND_VOLUME_SMOOTHING=1
+REM ADPCM/PCM8 の高品位リサンプラー（折り返しノイズを -94dB まで低減）
+REM   ※ X68SOUND_LINEAR_INTERPOLATION は現在の出力経路では効果がありません
+set X68SOUND_PCM_RESAMPLE=1
+REM ADPCM デコーダ: 0=標準（実機と同じ OKI 方式。推奨）
+REM   ※ 1 は別方式のテーブルで、音量が約 -6.6dB 下がるだけのため非推奨
+set X68SOUND_ADPCM_MODE=0
+
+REM ---- 出力（48kHz: 低遅延・低負荷） ----------------------------------------
 set X68SOUND_OUTPUT_RATE=48000
 
-REM 【音質向上機能】すべて有効化
-set X68SOUND_LINEAR_INTERPOLATION=1
-set X68SOUND_VOLUME_SMOOTHING=1
-set X68SOUND_OPM_SINE_INTERP=1
-set X68SOUND_ADPCM_MODE=1
-
-REM 【オーディオエフェクト】ゲーム最適化
-set X68SOUND_EXCITER=3
-set X68SOUND_SUB_BASS=3
-set X68SOUND_FM_HARMONIC=1
-set X68SOUND_COMPRESSOR=2
+REM ---- 音色（明瞭さとパンチ） -----------------------------------------------
+set X68SOUND_EXCITER=2
+set X68SOUND_SUB_BASS=2
+set X68SOUND_COMPRESSOR=1
+REM リバーブは OFF（効果音の明瞭度優先）
 set X68SOUND_REVERB=0
 
-REM 【バッファ設定】低レイテンシ重視
-set X68SOUND_PCM_BUFFER=5
+REM ---- バッファ（音が途切れる場合は PCM_BUFFER / LATE_TIME を増やす） ------
+set X68SOUND_PCM_BUFFER=4
 set X68SOUND_LATE_TIME=100
 set X68SOUND_BETW_TIME=5
 set X68SOUND_BUF_MULTIPLIER=1
 
-echo 設定内容:
-echo   プリセット: GAMING（ゲーム用）
-echo   出力サンプリングレート: 48kHz（低レイテンシ）
-echo   ADPCM高音質モード: ON (MSM6258)
-echo.
-echo 【有効なエフェクト】
-echo   - ハーモニックエキサイター: Bright（明瞭な高音）
-echo   - サブハーモニックベース: Deep（迫力ある低音）
-echo   - FM倍音エンハンサー: Subtle
-echo   - コンプレッサー: Medium（ダイナミクス最適化）
-echo   - リバーブ: OFF（明瞭度重視）
-echo.
-echo 【期待される効果】
-echo   - 低レイテンシで反応の良い音
-echo   - パンチの効いた明瞭なサウンド
-echo   - 効果音がクリアに聞こえる
-echo   - 爽快感のあるゲームプレイ
-echo.
+REM ---- 先読みリミッター（音割れ防止。上限 -1.0dBFS、遅延 1.5ms） ----------
+set X68SOUND_LIMITER=1
+set X68SOUND_LIMITER_CEILING=-10
 
-REM =========================================
-REM アプリケーション起動
-REM =========================================
-
-echo アプリケーションを起動します...
-echo （注意: your_application.exeを実際のパスに変更してください）
-echo.
-
-REM TODO: 下の行を編集してください
-your_application.exe
-
+REM =========================================================================
+REM 起動
+REM =========================================================================
+REM （パスに括弧を含む場合でも安全なように goto で分岐）
+if exist "%APP%" goto run
+echo [エラー] アプリケーションが見つかりません: "%APP%"
+echo このファイルを編集して APP= の行を実際のパスに変更してください。
 pause
+exit /b 1
+:run
+echo GAMING プリセット を適用して起動します: %APP%
+"%APP%" %*
+endlocal

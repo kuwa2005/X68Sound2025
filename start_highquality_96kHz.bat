@@ -1,78 +1,57 @@
 @echo off
-REM =========================================
-REM X68Sound2025 最高音質設定（96kHz）
-REM =========================================
-REM
-REM このバッチファイルは、X68Sound2025を最高音質で起動するための
-REM 環境変数を設定します。
-REM
-REM 【動作環境】
-REM - CPU: Intel Core i5以上 / AMD Ryzen 5以上
-REM - メモリ: 8GB以上
-REM - OS: Windows 10/11
-REM - オーディオ: 96kHz対応インターフェース
+chcp 65001 > nul
+setlocal
+REM =========================================================================
+REM X68Sound2025 高音質設定（96kHz）
+REM =========================================================================
+REM 原音の雰囲気を変えずに、ハイレゾ出力と高品位な補間で音質を最大化します。
+REM 響きや音色の加工はしません（忠実志向）。
 REM
 REM 【使い方】
-REM 1. 下の「your_application.exe」を実際のアプリケーションパスに変更
-REM 2. このバッチファイルをダブルクリックして起動
-REM
-REM =========================================
+REM   1. 下の APP= を、普段使っている MDX プレイヤー等のパスに書き換える
+REM   2. このファイルをダブルクリック（MDX ファイルをこのファイルに
+REM      ドラッグ＆ドロップすると、そのファイルを引数として渡します）
+REM   ※ 設定はこのバッチ内だけで有効です（setlocal）。
+REM =========================================================================
 
-echo X68Sound2025 最高音質設定を適用中...
-echo.
+set "APP=your_application.exe"
 
-REM 【ハイレゾ出力】96kHz
+REM ---- 基本の高音質化（リアルタイム再生でも負荷は小さい） ----------------
+REM OPM 正弦波補間（1=線形, HQ_SINE=1 で放物線補間）
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_HQ_SINE=1
+REM PCM8 の音量変化時のクリックノイズ除去
+set X68SOUND_VOLUME_SMOOTHING=1
+REM ADPCM/PCM8 の高品位リサンプラー（折り返しノイズを -94dB まで低減）
+REM   ※ X68SOUND_LINEAR_INTERPOLATION は現在の出力経路では効果がありません
+set X68SOUND_PCM_RESAMPLE=1
+REM ADPCM デコーダ: 0=標準（実機と同じ OKI 方式。推奨）
+REM   ※ 1 は別方式のテーブルで、音量が約 -6.6dB 下がるだけのため非推奨
+set X68SOUND_ADPCM_MODE=0
+
+REM ---- 出力 -------------------------------------------------------------
 set X68SOUND_OUTPUT_RATE=96000
 
-REM 【音質向上機能】すべて有効化
-set X68SOUND_LINEAR_INTERPOLATION=1
-set X68SOUND_VOLUME_SMOOTHING=1
-set X68SOUND_OPM_SINE_INTERP=1
-set X68SOUND_ADPCM_MODE=1
-
-REM 【バッファ設定】安定性重視
+REM ---- バッファ（音が途切れる場合は PCM_BUFFER / LATE_TIME を増やす） ------
 set X68SOUND_PCM_BUFFER=7
 set X68SOUND_LATE_TIME=200
 set X68SOUND_BETW_TIME=5
 set X68SOUND_BUF_MULTIPLIER=1
 
-REM 【デバッグログ】（必要に応じてコメント解除）
-REM set X68SOUND_DEBUG=1
+REM ---- 先読みリミッター（音割れ防止。上限 -1.0dBFS、遅延 1.5ms） ----------
+set X68SOUND_LIMITER=1
+set X68SOUND_LIMITER_CEILING=-10
 
-echo 設定内容:
-echo   出力サンプリングレート: 96kHz
-echo   PCM8/ADPCM線形補間: ON
-echo   ボリュームスムージング: ON
-echo   OPM正弦波線形補間: ON
-echo   ADPCM高音質モード: ON (MSM6258)
-echo   PCMバッファサイズ: 7
-echo   レイテンシ: 200ms
-echo.
-echo 【期待される効果】
-echo   - エイリアシングノイズ: 50～70%軽減
-echo   - クリックノイズ: 完全除去
-echo   - FM音源の音質: 大幅向上
-echo   - ADPCM音質: 16bit高精度デコード
-echo   - サンプリングレート: 2倍（44.1kHz→96kHz）
-echo   - CPU負荷: 約15～20%増加
-echo.
-
-REM =========================================
-REM アプリケーション起動
-REM =========================================
-REM 下の行を実際のアプリケーションパスに変更してください
-REM 例: C:\Games\X68000\MyEmulator.exe
-
-echo アプリケーションを起動します...
-echo （注意: your_application.exeを実際のパスに変更してください）
-echo.
-
-REM TODO: 下の行を編集してください
-your_application.exe
-
-REM もし音が途切れる場合は、以下のコメントを解除してください：
-REM set X68SOUND_PCM_BUFFER=10
-REM set X68SOUND_LATE_TIME=300
-REM set X68SOUND_BUF_MULTIPLIER=2
-
+REM =========================================================================
+REM 起動
+REM =========================================================================
+REM （パスに括弧を含む場合でも安全なように goto で分岐）
+if exist "%APP%" goto run
+echo [エラー] アプリケーションが見つかりません: "%APP%"
+echo このファイルを編集して APP= の行を実際のパスに変更してください。
 pause
+exit /b 1
+:run
+echo 高音質設定(96kHz) を適用して起動します: %APP%
+"%APP%" %*
+endlocal

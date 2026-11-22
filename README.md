@@ -21,74 +21,63 @@ X68Sound2025を最高音質で使うには、アプリケーション起動前�
 ### 🔊 スピーカー向け設定
 
 ```batch
-REM 基本音質向上
-set X68SOUND_OUTPUT_RATE=96000           :: 96kHzハイレゾ出力
-set X68SOUND_LINEAR_INTERPOLATION=1     :: PCM8/ADPCM線形補間
-set X68SOUND_VOLUME_SMOOTHING=1         :: ボリュームスムージング
-set X68SOUND_OPM_SINE_INTERP=1          :: OPM正弦波線形補間
-set X68SOUND_ADPCM_MODE=1               :: MSM6258高音質ADPCMデコーダ
+REM 基本の高音質化
+set X68SOUND_OUTPUT_RATE=96000          :: 96kHzハイレゾ出力
+set X68SOUND_OPM_SINE_INTERP=1          :: OPM正弦波補間
+set X68SOUND_HQ_SINE=1                  :: 放物線補間
+set X68SOUND_VOLUME_SMOOTHING=1         :: 音量変化のクリック除去
+set X68SOUND_PCM_RESAMPLE=1             :: ADPCM/PCM8 高品位リサンプラー
+set X68SOUND_ADPCM_MODE=0               :: 実機と同じOKI方式デコーダ（推奨）
 
-REM ステレオ強化・立体音響（NEW!）
-set X68SOUND_STEREO_WIDTH=150           :: ステレオ幅拡張
-set X68SOUND_CENTER_WIDTH=70            :: センターチャンネル幅拡張
-set X68SOUND_EARLY_REFLECTIONS=30       :: 初期反射音（空間の深み）
+REM 音色補正（控えめ）
+set X68SOUND_EXCITER=1
+set X68SOUND_SUB_BASS=1
+set X68SOUND_FM_WARMTH=1
+set X68SOUND_EQ_LOW_GAIN=2              :: 低域 +2dB
 
-REM 音色補正
-set X68SOUND_EXCITER=2                  :: ハーモニックエキサイター
-set X68SOUND_SUB_BASS=2                 :: サブハーモニックベース
-set X68SOUND_FM_HARMONIC=2              :: FM倍音エンハンサー
-set X68SOUND_FM_WARMTH=2                :: FM温かみエフェクト
+REM 広がりと響き
+set X68SOUND_STEREO_WIDTH=120           :: 100=原音
+set X68SOUND_CENTER_WIDTH=40
+set X68SOUND_EARLY_REFLECTIONS=20
+set X68SOUND_REVERB=2
+set X68SOUND_REVERB_ALGO=1              :: FDNリバーブ
+set X68SOUND_REVERB_DECAY=60
+set X68SOUND_REVERB_MIX=15
 
-REM リバーブ
-set X68SOUND_REVERB=2                   :: リバーブ（Medium Room）
-set X68SOUND_REVERB_DECAY=70            :: 残響時間
-set X68SOUND_REVERB_MIX=20              :: リバーブミックス
-
-REM バッファ設定
-set X68SOUND_PCM_BUFFER=7               :: バッファサイズ
-set X68SOUND_LATE_TIME=200              :: レイテンシ
+REM 音割れ防止とバッファ
+set X68SOUND_LIMITER=1                  :: 先読みリミッター（-1dBFS）
+set X68SOUND_PCM_BUFFER=7
+set X68SOUND_LATE_TIME=200
 ```
 
 📦 **プリセット:** [`start_preset_music.bat`](start_preset_music.bat)
 
 ### 🎧 ヘッドホン向け設定
 
+基本の高音質化はスピーカー向けと同じです。
+
 ```batch
-REM 基本音質向上
-set X68SOUND_OUTPUT_RATE=96000           :: 96kHzハイレゾ出力
-set X68SOUND_LINEAR_INTERPOLATION=1     :: PCM8/ADPCM線形補間
-set X68SOUND_VOLUME_SMOOTHING=1         :: ボリュームスムージング
-set X68SOUND_OPM_SINE_INTERP=1          :: OPM正弦波線形補間
-set X68SOUND_ADPCM_MODE=1               :: MSM6258高音質ADPCMデコーダ
-
-REM ヘッドホン最適化（NEW!）
-set X68SOUND_STEREO_WIDTH=120           :: ステレオ幅（やや広め）
 set X68SOUND_CROSSFEED=30               :: クロスフィード（圧迫感軽減）
-set X68SOUND_CROSSFEED_DELAY=2          :: クロスフィード遅延
-set X68SOUND_HAAS_EFFECT=50             :: ハース効果（立体音響）
-set X68SOUND_HAAS_DELAY=5               :: ハース効果遅延
-
-REM 音色補正
-set X68SOUND_EXCITER=2                  :: ハーモニックエキサイター
-set X68SOUND_SUB_BASS=1                 :: サブハーモニックベース（控えめ）
-set X68SOUND_FM_HARMONIC=2              :: FM倍音エンハンサー
-set X68SOUND_FM_WARMTH=2                :: FM温かみエフェクト
-
-REM リバーブ
-set X68SOUND_REVERB=1                   :: リバーブ（Small Room）
-set X68SOUND_REVERB_MIX=15              :: リバーブミックス（控えめ）
-
-REM バッファ設定
-set X68SOUND_PCM_BUFFER=7               :: バッファサイズ
-set X68SOUND_LATE_TIME=200              :: レイテンシ
+set X68SOUND_CROSSFEED_DELAY=3          :: 0.3ms
+set X68SOUND_STEREO_WIDTH=110
+set X68SOUND_EXCITER=1
+set X68SOUND_EQ_HIGH_GAIN=-1            :: 高域を少し抑えて聴き疲れ軽減
+set X68SOUND_REVERB=1
+set X68SOUND_REVERB_ALGO=1
+set X68SOUND_REVERB_MIX=10
+set X68SOUND_LIMITER=1
 ```
 
 📦 **プリセット:** [`start_preset_headphone.bat`](start_preset_headphone.bat)
 
 ### 🎮 その他のプリセット
 
-- 🎮 **ゲーム用** [`start_preset_gaming.bat`](start_preset_gaming.bat) - 低遅延、パンチのある音
-- 📻 **ビンテージ風** [`start_preset_vintage.bat`](start_preset_vintage.bat) - アナログシンセのような温かみ
+- 🎮 **ゲーム用** [`start_preset_gaming.bat`](start_preset_gaming.bat) - 低遅延（48kHz）、響きなしでパンチのある音
+- 📻 **ビンテージ風** [`start_preset_vintage.bat`](start_preset_vintage.bat) - FMの温かみ＋3声コーラス、高域を丸めたアナログ風
+- 🎚 **標準** [`start_standard.bat`](start_standard.bat) - 加工なしで基本の高音質化のみ（低負荷）
+- 💎 **高音質** [`start_highquality_96kHz.bat`](start_highquality_96kHz.bat) / [`start_ultrahighquality_192kHz.bat`](start_ultrahighquality_192kHz.bat) - 音色を変えない忠実志向のハイレゾ
+
+どのバッチも、冒頭の `APP=` を使っているプレイヤーのパスに書き換えて使います。MDX ファイルをバッチにドラッグ＆ドロップすると、そのまま再生できます。
 
 ---
 
