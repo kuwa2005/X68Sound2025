@@ -44,3 +44,6 @@ EXPORTS
 	X68Sound_DebugValue	@34
 
 	X68Sound_SetMask	@35
+
+	X68Sound_InitConfig	@36
+	X68Sound_GetSamprate	@37
