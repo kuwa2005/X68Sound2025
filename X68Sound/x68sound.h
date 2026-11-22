@@ -47,6 +47,10 @@ extern "C" int X68Sound_DebugValue();
 extern "C" void X68Sound_SetMask(int mask);
 extern "C" void X68Sound_TimerA();
 
+// Static-link helpers (not exported from the DLL)
+extern "C" void X68Sound_InitConfig();
+extern "C" int X68Sound_GetSamprate();
+
 
 #define	X68SNDERR_PCMOUT	(-1)
 #define	X68SNDERR_TIMER		(-2)

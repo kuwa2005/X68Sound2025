@@ -891,3 +891,38 @@ set X68SOUND_REVERB_MIX=25
 **作成日**: 2025-01-17
 **最終更新日**: 2025-11-18
 **バージョン**: 2.3 (オーディオエフェクトシステム追加)
+
+---
+
+## 高音質 DSP（X68Sound2025 追加機能）
+
+いずれも既定は OFF です。指定しない限り、fork 元と同じ音が出ます。
+
+| 環境変数 | 既定 | 範囲 | 内容 |
+|---|---|---|---|
+| `X68SOUND_PCM_RESAMPLE` | 0 | 0/1 | ADPCM/PCM8（15.625kHz）を、窓付き sinc 補間（32タップ）で出力レートへ変換します。0次ホールドによる折り返しノイズを −30〜−50dB から −94dB まで減らします |
+| `X68SOUND_REVERB_ALGO` | 0 | 0/1 | 1 で FDN リバーブ（8本の遅延線、揺らぎ付き、帯域別の減衰）。`X68SOUND_REVERB`（部屋の大きさ）、`X68SOUND_REVERB_DECAY`（残響時間）、`X68SOUND_REVERB_MIX` と組み合わせて使います |
+| `X68SOUND_REVERB_PREDELAY` | 10 | 0〜100 | FDN リバーブのプリディレイ（ms） |
+| `X68SOUND_CHORUS_ALGO` | 0 | 0/1 | 1 で3声のステレオコーラス（`X68SOUND_FM_CHORUS` の深さで動作） |
+| `X68SOUND_EQ_LOW_GAIN` / `_FREQ` | 0 / 100 | −12〜12dB / 20〜2000Hz | 低域シェルフ |
+| `X68SOUND_EQ_MID_GAIN` / `_FREQ` / `_Q` | 0 / 1000 / 70 | −12〜12dB / 100〜10000Hz / Q×100 | 中域ピーキング |
+| `X68SOUND_EQ_HIGH_GAIN` / `_FREQ` | 0 / 8000 | −12〜12dB / 1000〜20000Hz | 高域シェルフ |
+| `X68SOUND_LIMITER` | 0 | 0/1 | 先読み型（1.5ms）のピークリミッター。途中のハードクリップを置き換え、出力が上限を超えないようにします |
+| `X68SOUND_LIMITER_CEILING` | −10 | −120〜0 | リミッターの上限（0.1dB 単位。−10 = −1.0dBFS） |
+| `X68SOUND_AI_ENHANCE` | 0 | 0/1 | **AI による ADPCM 高音質化（オフライン描画時のみ有効）**。小型ニューラルネットで ADPCM の量子化誤差を補正します。mxwav では `-A` で有効になります。リアルタイム再生では自動的に無効になります |
+| `X68SOUND_AI_STRENGTH` | 100 | 0〜100 | AI 補正の強さ（%） |
+
+### 推奨例（MDX→WAV 変換向け）
+```batch
+set X68SOUND_OUTPUT_RATE=96000
+set X68SOUND_PCM_RESAMPLE=1
+set X68SOUND_AI_ENHANCE=1
+set X68SOUND_REVERB=2
+set X68SOUND_REVERB_ALGO=1
+set X68SOUND_REVERB_MIX=15
+set X68SOUND_LIMITER=1
+```
+
+### 注意
+- `X68SOUND_LINEAR_INTERPOLATION` は、現在の出力経路では実質的に効果がありません（補間した値が出力に使われていないため）。補間による高音質化には `X68SOUND_PCM_RESAMPLE=1` を使ってください。
+- 環境変数に `0` を指定すると、既定で ON の機能を OFF にできます（以前は `0` が無視されていた不具合を修正しました）。

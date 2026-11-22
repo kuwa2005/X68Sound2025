@@ -16,3 +16,6 @@
 
 # Test binaries
 tests/test_audio_fixes
+
+# Test build output
+tests/build/

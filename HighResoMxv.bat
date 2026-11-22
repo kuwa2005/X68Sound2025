@@ -1,105 +1,74 @@
 @echo off
+chcp 65001 > nul
+setlocal
+REM =========================================================================
+REM X68Sound2025 + mxv ハイレゾ再生（96kHz, 作者用ランチャー）
+REM =========================================================================
+REM mxv でのリアルタイム再生向け。ハイレゾ出力に自然な広がりと響きを加えます。
+REM 安定性重視でレイテンシを大きめ（500ms）にしています。
+REM
+REM 【使い方】
+REM   1. 下の APP= を、普段使っている MDX プレイヤー等のパスに書き換える
+REM   2. このファイルをダブルクリック（MDX ファイルをこのファイルに
+REM      ドラッグ＆ドロップすると、そのファイルを引数として渡します）
+REM   ※ 設定はこのバッチ内だけで有効です（setlocal）。
+REM =========================================================================
 
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM 基本設定
-REM システムの動作に関する基本的な設定です。
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+set "APP=E:\Tools\mdx\mxv.exe"
 
-REM PCMバッファサイズ。大きいほど安定、小さいほど低遅延（2-20）
-SET X68SOUND_PCM_BUFFER=5
+REM ---- 基本の高音質化（リアルタイム再生でも負荷は小さい） ----------------
+REM OPM 正弦波補間（1=線形, HQ_SINE=1 で放物線補間）
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_HQ_SINE=1
+REM PCM8 の音量変化時のクリックノイズ除去
+set X68SOUND_VOLUME_SMOOTHING=1
+REM ADPCM/PCM8 の高品位リサンプラー（折り返しノイズを -94dB まで低減）
+REM   ※ X68SOUND_LINEAR_INTERPOLATION は現在の出力経路では効果がありません
+set X68SOUND_PCM_RESAMPLE=1
+REM ADPCM デコーダ: 0=標準（実機と同じ OKI 方式。推奨）
+REM   ※ 1 は別方式のテーブルで、音量が約 -6.6dB 下がるだけのため非推奨
+set X68SOUND_ADPCM_MODE=0
 
-REM Between時間（ms）。タイマー割り込み間隔（1-50）
-SET X68SOUND_BETW_TIME=5
+REM ---- 出力 -------------------------------------------------------------
+set X68SOUND_OUTPUT_RATE=96000
 
-REM レイテンシ時間（ms）。大きいほど音途切れに強い（50-1000）
-SET X68SOUND_LATE_TIME=500
+REM ---- 音色補正（MAX=4 は過剰に色付くため 2 に） ---------------------------
+set X68SOUND_EXCITER=2
+set X68SOUND_SUB_BASS=2
 
-REM サンプルレート補正係数（0.1-10.0）
-SET X68SOUND_REV_MARGIN=1.0
+REM ---- 広がり -------------------------------------------------------------
+set X68SOUND_STEREO_WIDTH=115
+set X68SOUND_CENTER_WIDTH=40
+set X68SOUND_CROSSFEED=30
+set X68SOUND_CROSSFEED_DELAY=2
+set X68SOUND_EARLY_REFLECTIONS=30
 
-REM バッファサイズ乗数。メモリに余裕がある場合に増加（1-8）
-SET X68SOUND_BUF_MULTIPLIER=1
+REM ---- リバーブ（FDN 方式） ------------------------------------------------
+set X68SOUND_REVERB=2
+set X68SOUND_REVERB_ALGO=1
+set X68SOUND_REVERB_DECAY=60
+set X68SOUND_REVERB_MIX=12
 
-REM 出力サンプリングレート（Hz）（15625-192000）
-SET X68SOUND_OUTPUT_RATE=96000
+REM ---- バッファ（音が途切れる場合は PCM_BUFFER / LATE_TIME を増やす） ------
+set X68SOUND_PCM_BUFFER=5
+set X68SOUND_LATE_TIME=500
+set X68SOUND_BETW_TIME=5
+set X68SOUND_BUF_MULTIPLIER=1
 
-REM 低遅延重視: PCM_BUFFER=3, LATE_TIME=100
-REM 安定性重視: PCM_BUFFER=8, LATE_TIME=300
-REM 高音質: OUTPUT_RATE=96000 または 192000
+REM ---- 先読みリミッター（音割れ防止。上限 -1.0dBFS、遅延 1.5ms） ----------
+set X68SOUND_LIMITER=1
+set X68SOUND_LIMITER_CEILING=-10
 
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM 音声信号処理の品質を向上させる機能です。
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-
-REM PCM8/ADPCM線形補間（エイリアシングノイズを削減、滑らかな音質） 1=ON推奨 （0/1）
-SET X68SOUND_LINEAR_INTERPOLATION=1
-
-REM PCM8ボリュームスムージング（音量変化のクリックノイズを除去）。1=ON推奨（0/1）
-SET X68SOUND_VOLUME_SMOOTHING=1
-
-REM OPM正弦波線形補間。1=ON推奨（0/1）
-SET X68SOUND_OPM_SINE_INTERP=1
-
-REM ADPCMデコーダー（より正確なADPCMデコード、豊かな音色） 0=Legacy, 1=MSM6258高音質（0/1）
-SET X68SOUND_ADPCM_MODE=1
-
-REM OPM音質モード。0=標準, 1=高品質, 2=最高品質（0-2）
-SET X68SOUND_OPM_QUALITY=2
-
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM ステレオ強化・立体音響
-REM X68000のL/C/Rパンニングを立体的なステレオ音場に変換する機能です。
-REM 効果: ヘッドホンの圧迫感を軽減、自然な定位感
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-
-REM ステレオ幅（%）。100=通常, 150=広い, 200=超広い（50-200）
-SET X68SOUND_STEREO_WIDTH=125
-
-REM クロスフィード（ヘッドホン最適化）
-REM クロスフィードレベル。0=OFF, 30=自然, 50=強い（0-100）
-SET X68SOUND_CROSSFEED=50
-
-REM クロスフィード遅延（0.1ms単位）。2=0.2ms （1-10）
-SET X68SOUND_CROSSFEED_DELAY=2
-
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM センターチャンネル幅拡張
-REM L/C/Rを擬似的に広いステレオ音場に変換
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-
-REM センター定位の音を左右に広げる。0=OFF, 70=推奨（0-100）
-SET X68SOUND_CENTER_WIDTH=70
-
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM ハース効果（先行音効果）
-REM 音に奥行きと広がりを加え、立体的なサウンドステージを実現
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-
-REM ハース効果レベル。0=OFF, 50=推奨（0-100）
-SET X68SOUND_HAAS_EFFECT=50
-
-REM ハース効果遅延（0.1ms単位）。5=0.5ms（1-10）
-SET X68SOUND_HAAS_DELAY=5
-
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM 初期反射音
-REM 部屋の壁からの反射をシミュレート、空間の深みを演出
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-
-REM 初期反射音レベル。0=OFF, 30=推奨（0-100）
-SET X68SOUND_EARLY_REFLECTIONS=50
-
-REM 高音域補完（ハイジェネレーター）(0-4)
-set X68SOUND_EXCITER=4
-
-REM 低音域補完（ロージェネレーター）(0-4)
-set X68SOUND_SUB_BASS=4
-
-
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-REM set X68SOUND_DEBUG=0
-REM ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-
-REM 普段使っているMDXプレイヤーを記述
-"E:\Tools\mdx\mxv.exe"
-
+REM =========================================================================
+REM 起動
+REM =========================================================================
+REM （パスに括弧を含む場合でも安全なように goto で分岐）
+if exist "%APP%" goto run
+echo [エラー] アプリケーションが見つかりません: "%APP%"
+echo このファイルを編集して APP= の行を実際のパスに変更してください。
+pause
+exit /b 1
+:run
+echo HighResoMxv を適用して起動します: %APP%
+"%APP%" %*
+endlocal

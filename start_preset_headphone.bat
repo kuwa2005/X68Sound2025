@@ -1,81 +1,76 @@
 @echo off
-REM =========================================
-REM X68Sound2025 HEADPHONE プリセット
-REM =========================================
+chcp 65001 > nul
+setlocal
+REM =========================================================================
+REM X68Sound2025 HEADPHONE プリセット（ヘッドホン向け, 96kHz）
+REM =========================================================================
+REM クロスフィードで左右に極端に振られた音の圧迫感を和らげ、長時間でも疲れにくい音にします。
 REM
-REM ヘッドホンリスニング用の最適化設定です。
-REM クロスフィードで圧迫感を軽減し、
-REM 適度なステレオ幅で自然な定位感を実現します。
-REM
-REM 【動作環境】
-REM - CPU: Intel Core i5以上 / AMD Ryzen 5以上
-REM - メモリ: 8GB以上
-REM - オーディオ: ヘッドホン、96kHz対応DAC推奨
-REM
-REM =========================================
+REM 【使い方】
+REM   1. 下の APP= を、普段使っている MDX プレイヤー等のパスに書き換える
+REM   2. このファイルをダブルクリック（MDX ファイルをこのファイルに
+REM      ドラッグ＆ドロップすると、そのファイルを引数として渡します）
+REM   ※ 設定はこのバッチ内だけで有効です（setlocal）。
+REM =========================================================================
 
-echo X68Sound2025 HEADPHONE プリセットを適用中...
-echo.
+set "APP=your_application.exe"
 
-REM 【ハイレゾ出力】96kHz
+REM ---- 基本の高音質化（リアルタイム再生でも負荷は小さい） ----------------
+REM OPM 正弦波補間（1=線形, HQ_SINE=1 で放物線補間）
+set X68SOUND_OPM_SINE_INTERP=1
+set X68SOUND_HQ_SINE=1
+REM PCM8 の音量変化時のクリックノイズ除去
+set X68SOUND_VOLUME_SMOOTHING=1
+REM ADPCM/PCM8 の高品位リサンプラー（折り返しノイズを -94dB まで低減）
+REM   ※ X68SOUND_LINEAR_INTERPOLATION は現在の出力経路では効果がありません
+set X68SOUND_PCM_RESAMPLE=1
+REM ADPCM デコーダ: 0=標準（実機と同じ OKI 方式。推奨）
+REM   ※ 1 は別方式のテーブルで、音量が約 -6.6dB 下がるだけのため非推奨
+set X68SOUND_ADPCM_MODE=0
+
+REM ---- 出力 -------------------------------------------------------------
 set X68SOUND_OUTPUT_RATE=96000
 
-REM 【音質向上機能】すべて有効化
-set X68SOUND_LINEAR_INTERPOLATION=1
-set X68SOUND_VOLUME_SMOOTHING=1
-set X68SOUND_OPM_SINE_INTERP=1
-set X68SOUND_ADPCM_MODE=1
-
-REM 【オーディオエフェクト】ヘッドホン最適化
-set X68SOUND_EXCITER=2
-set X68SOUND_SUB_BASS=1
-set X68SOUND_FM_HARMONIC=2
-set X68SOUND_FM_WARMTH=2
-set X68SOUND_STEREO_WIDTH=120
+REM ---- ヘッドホン最適化 ---------------------------------------------------
+REM クロスフィード: 0=OFF, 30=自然 / 遅延は 0.1ms 単位（3=0.3ms）
 set X68SOUND_CROSSFEED=30
-set X68SOUND_CROSSFEED_DELAY=2
-set X68SOUND_HAAS_EFFECT=50
-set X68SOUND_HAAS_DELAY=5
-set X68SOUND_REVERB=1
-set X68SOUND_REVERB_MIX=15
+set X68SOUND_CROSSFEED_DELAY=3
+set X68SOUND_STEREO_WIDTH=110
+REM ハース効果はクロスフィードと重なると定位がにじむため OFF
+set X68SOUND_HAAS_EFFECT=0
 
-REM 【バッファ設定】安定性重視
+REM ---- 音色補正 -----------------------------------------------------------
+set X68SOUND_EXCITER=1
+REM 高域をわずかに抑えて聴き疲れを軽減
+set X68SOUND_EQ_HIGH_GAIN=-1
+set X68SOUND_EQ_HIGH_FREQ=8000
+
+REM ---- 控えめな空間感（FDN リバーブ） ---------------------------------------
+set X68SOUND_REVERB=1
+set X68SOUND_REVERB_ALGO=1
+set X68SOUND_REVERB_DECAY=40
+set X68SOUND_REVERB_MIX=10
+
+REM ---- バッファ（音が途切れる場合は PCM_BUFFER / LATE_TIME を増やす） ------
 set X68SOUND_PCM_BUFFER=7
 set X68SOUND_LATE_TIME=200
 set X68SOUND_BETW_TIME=5
 set X68SOUND_BUF_MULTIPLIER=1
 
-echo 設定内容:
-echo   プリセット: HEADPHONE（ヘッドホン用）
-echo   出力サンプリングレート: 96kHz
-echo   ADPCM高音質モード: ON (MSM6258)
-echo.
-echo 【有効なエフェクト】
-echo   - ハーモニックエキサイター: Medium（高域補完）
-echo   - サブハーモニックベース: Subtle（控えめな低音）
-echo   - FM倍音エンハンサー: Medium
-echo   - FM温かみエフェクト: Medium
-echo   - ステレオ幅: 120%%（やや広め）
-echo   - クロスフィード: Natural（圧迫感軽減）
-echo   - ハース効果: Medium（立体音響）
-echo   - リバーブ: Small Room（控えめな空間感）
-echo.
-echo 【期待される効果】
-echo   - ヘッドホンの圧迫感が完全に解消
-echo   - 自然な楽器の定位感
-echo   - 長時間リスニングでも疲れにくい
-echo   - 適度な空間感で没入感向上
-echo.
+REM ---- 先読みリミッター（音割れ防止。上限 -1.0dBFS、遅延 1.5ms） ----------
+set X68SOUND_LIMITER=1
+set X68SOUND_LIMITER_CEILING=-10
 
-REM =========================================
-REM アプリケーション起動
-REM =========================================
-
-echo アプリケーションを起動します...
-echo （注意: your_application.exeを実際のパスに変更してください）
-echo.
-
-REM TODO: 下の行を編集してください
-your_application.exe
-
+REM =========================================================================
+REM 起動
+REM =========================================================================
+REM （パスに括弧を含む場合でも安全なように goto で分岐）
+if exist "%APP%" goto run
+echo [エラー] アプリケーションが見つかりません: "%APP%"
+echo このファイルを編集して APP= の行を実際のパスに変更してください。
 pause
+exit /b 1
+:run
+echo HEADPHONE プリセット を適用して起動します: %APP%
+"%APP%" %*
+endlocal

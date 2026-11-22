@@ -80,7 +80,28 @@ struct X68SoundConfig {
 	int hq_sine_table;               // Use 4096-entry sine table with parabolic interpolation (0=OFF, 1=ON, default: 0)
 	int lfsr_noise;                  // Use LFSR noise generator (0=OFF, 1=ON, default: 0)
 	int dithering;                   // Enable TPDF dithering (0=OFF, 1=ON, default: 0)
+
+	// High quality DSP (dsp.h) - all OFF by default
+	int pcm_resample;                // ADPCM/PCM8 windowed-sinc resampling (0=OFF original, 1=ON)
+	int reverb_algo;                 // 0=classic comb/allpass, 1=FDN (8-line feedback delay network)
+	int reverb_predelay;             // FDN pre-delay in ms (0-100, default 10)
+	int chorus_algo;                 // 0=classic FM chorus, 1=3-voice stereo chorus
+	int eq_low_gain;                 // dB (-12..12), 0=bypass
+	int eq_low_freq;                 // Hz (default 100)
+	int eq_mid_gain;                 // dB (-12..12), 0=bypass
+	int eq_mid_freq;                 // Hz (default 1000)
+	int eq_mid_q;                    // Q x100 (10..1000, default 70)
+	int eq_high_gain;                // dB (-12..12), 0=bypass
+	int eq_high_freq;                // Hz (default 8000)
+	int limiter;                     // look-ahead limiter (0=OFF, 1=ON)
+	int limiter_ceiling;             // ceiling in 0.1dB (-120..0, default -10 = -1.0dBFS)
+	int ai_enhance;                  // neural ADPCM enhancement (0=OFF, 1=ON) - offline rendering only
+	int ai_strength;                 // 0..100 % (default 100)
 };
+
+// [AI] 1 while rendering offline (X68Sound_StartPcm). Heavy processing such as
+// the neural ADPCM enhancer is only enabled in this mode.
+int g_OfflineRender = 0;
 
 // Global configuration instance
 X68SoundConfig g_Config = {
@@ -143,7 +164,12 @@ X68SoundConfig g_Config = {
 	// High-quality FM synthesis (OFF by default for compatibility)
 	0,      // hq_sine_table (default: OFF)
 	0,      // lfsr_noise (default: OFF)
-	0       // dithering (default: OFF)
+	0,      // dithering (default: OFF)
+
+	0, 0, 10, 0,             // pcm_resample, reverb_algo, reverb_predelay, chorus_algo
+	0, 100, 0, 1000, 70, 0, 8000,   // EQ
+	0, -10,                  // limiter, limiter_ceiling
+	0, 100                   // ai_enhance, ai_strength
 };
 
 // Helper function to read environment variable as integer
@@ -151,8 +177,12 @@ inline int GetEnvInt(const char* name, int defaultValue) {
 	char buffer[256];
 	DWORD result = GetEnvironmentVariableA(name, buffer, sizeof(buffer));
 	if (result > 0 && result < sizeof(buffer)) {
-		int value = atoi(buffer);
-		if (value > 0) return value;
+		// Accept any integer including 0 (previously "0" was ignored, so options
+		// that default to ON could not be turned off). Range is checked by the
+		// validation in LoadConfigFromEnvironment().
+		char *end = NULL;
+		long value = strtol(buffer, &end, 10);
+		if (end != buffer) return (int)value;
 	}
 	return defaultValue;
 }
@@ -161,8 +191,9 @@ inline double GetEnvDouble(const char* name, double defaultValue) {
 	char buffer[256];
 	DWORD result = GetEnvironmentVariableA(name, buffer, sizeof(buffer));
 	if (result > 0 && result < sizeof(buffer)) {
-		double value = atof(buffer);
-		if (value > 0.0) return value;
+		char *end = NULL;
+		double value = strtod(buffer, &end);
+		if (end != buffer) return value;
 	}
 	return defaultValue;
 }
@@ -228,6 +259,23 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.hq_sine_table = GetEnvInt("X68SOUND_HQ_SINE", 0);
 	g_Config.lfsr_noise = GetEnvInt("X68SOUND_LFSR_NOISE", 0);
 	g_Config.dithering = GetEnvInt("X68SOUND_DITHERING", 0);
+
+	// High quality DSP
+	g_Config.pcm_resample = GetEnvInt("X68SOUND_PCM_RESAMPLE", 0);
+	g_Config.reverb_algo = GetEnvInt("X68SOUND_REVERB_ALGO", 0);
+	g_Config.reverb_predelay = GetEnvInt("X68SOUND_REVERB_PREDELAY", 10);
+	g_Config.chorus_algo = GetEnvInt("X68SOUND_CHORUS_ALGO", 0);
+	g_Config.eq_low_gain = GetEnvInt("X68SOUND_EQ_LOW_GAIN", 0);
+	g_Config.eq_low_freq = GetEnvInt("X68SOUND_EQ_LOW_FREQ", 100);
+	g_Config.eq_mid_gain = GetEnvInt("X68SOUND_EQ_MID_GAIN", 0);
+	g_Config.eq_mid_freq = GetEnvInt("X68SOUND_EQ_MID_FREQ", 1000);
+	g_Config.eq_mid_q = GetEnvInt("X68SOUND_EQ_MID_Q", 70);
+	g_Config.eq_high_gain = GetEnvInt("X68SOUND_EQ_HIGH_GAIN", 0);
+	g_Config.eq_high_freq = GetEnvInt("X68SOUND_EQ_HIGH_FREQ", 8000);
+	g_Config.limiter = GetEnvInt("X68SOUND_LIMITER", 0);
+	g_Config.limiter_ceiling = GetEnvInt("X68SOUND_LIMITER_CEILING", -10);
+	g_Config.ai_enhance = GetEnvInt("X68SOUND_AI_ENHANCE", 0);
+	g_Config.ai_strength = GetEnvInt("X68SOUND_AI_STRENGTH", 100);
 
 	// Validation
 	if (g_Config.pcm_buffer_size < 2) g_Config.pcm_buffer_size = 2;
@@ -332,6 +380,25 @@ inline void LoadConfigFromEnvironment() {
 	g_Config.hq_sine_table = (g_Config.hq_sine_table != 0) ? 1 : 0;
 	g_Config.lfsr_noise = (g_Config.lfsr_noise != 0) ? 1 : 0;
 	g_Config.dithering = (g_Config.dithering != 0) ? 1 : 0;
+
+	// Validate high quality DSP
+	#define X68_CLAMP_CFG(v, lo, hi) do { if ((v) < (lo)) (v) = (lo); if ((v) > (hi)) (v) = (hi); } while (0)
+	g_Config.pcm_resample = (g_Config.pcm_resample != 0) ? 1 : 0;
+	g_Config.reverb_algo = (g_Config.reverb_algo != 0) ? 1 : 0;
+	X68_CLAMP_CFG(g_Config.reverb_predelay, 0, 100);
+	g_Config.chorus_algo = (g_Config.chorus_algo != 0) ? 1 : 0;
+	X68_CLAMP_CFG(g_Config.eq_low_gain, -12, 12);
+	X68_CLAMP_CFG(g_Config.eq_mid_gain, -12, 12);
+	X68_CLAMP_CFG(g_Config.eq_high_gain, -12, 12);
+	X68_CLAMP_CFG(g_Config.eq_low_freq, 20, 2000);
+	X68_CLAMP_CFG(g_Config.eq_mid_freq, 100, 10000);
+	X68_CLAMP_CFG(g_Config.eq_mid_q, 10, 1000);
+	X68_CLAMP_CFG(g_Config.eq_high_freq, 1000, 20000);
+	g_Config.limiter = (g_Config.limiter != 0) ? 1 : 0;
+	X68_CLAMP_CFG(g_Config.limiter_ceiling, -120, 0);
+	g_Config.ai_enhance = (g_Config.ai_enhance != 0) ? 1 : 0;
+	X68_CLAMP_CFG(g_Config.ai_strength, 0, 100);
+	#undef X68_CLAMP_CFG
 
 	// Debug logging (Level 1: Basic information)
 	if (g_Config.debug_log_level >= 1) {
@@ -670,7 +737,26 @@ const int PCM8VOLTBL[16] = {
 
 
 unsigned char *bswapl(unsigned char *adrs) {
-	return (unsigned char*)_byteswap_ulong((unsigned long)adrs);
+	return (unsigned char*)(uintptr_t)_byteswap_ulong((unsigned long)(uintptr_t)adrs);
+}
+
+// DMA address registers (MAR/DAR/BAR) hold a 32-bit big-endian address,
+// exactly like the real HD63450. Read/write them as 32-bit values instead of
+// "*(unsigned char **)&DmaReg[x]", which reads 8 bytes on 64-bit builds.
+// On 64-bit builds the data referenced by DMA must therefore be located in the
+// low 4GB of the address space (see mxwav/src/lowmem.h).
+inline unsigned char *DmaRegGetAdrs(const volatile unsigned char *reg) {
+	uint32_t v = ((uint32_t)reg[0] << 24) | ((uint32_t)reg[1] << 16) | ((uint32_t)reg[2] << 8) | (uint32_t)reg[3];
+	return (unsigned char *)(uintptr_t)v;
+}
+inline void DmaRegSetAdrs(volatile unsigned char *reg, const volatile unsigned char *adrs) {
+	uint32_t v = (uint32_t)(uintptr_t)adrs;
+	reg[0] = (unsigned char)(v >> 24); reg[1] = (unsigned char)(v >> 16);
+	reg[2] = (unsigned char)(v >> 8);  reg[3] = (unsigned char)v;
+}
+// 32-bit big-endian address assembled from 4 bytes read from memory
+inline volatile unsigned char *AdrsFromBytes(int b0, int b1, int b2, int b3) {
+	return (volatile unsigned char *)(uintptr_t)(((uint32_t)b0 << 24) | ((uint32_t)b1 << 16) | ((uint32_t)b2 << 8) | (uint32_t)b3);
 }
 
 unsigned short bswapw(unsigned short data) {
@@ -682,15 +768,28 @@ int	CALLBACK MemReadDefault(unsigned char *adrs) {
 }
 int (CALLBACK *MemRead)(unsigned char *adrs) = MemReadDefault;
 
-// 17-bit LFSR noise generator (matches YM2151 hardware)
-// Taps at bits 0 and 3, XOR feedback
+// Random number generator for OPM noise and LFO noise waveform.
+// Callers use the UPPER bits (irnd()>>30, irnd()>>(32-SIZELFOTBL_BITS)),
+// so the result must be spread over all 32 bits.
+//  - Default: original LCG (same as the fork source)
+//  - X68SOUND_LFSR_NOISE=1: 17-bit LFSR (YM2151 style). Each output bit is
+//    clocked out of the LFSR so the upper bits are random as well.
+//    (The previous implementation returned the raw 17-bit register, so the
+//     upper bits were always 0: noise channel became a constant DC value.)
 unsigned int irnd(void) {
-	static unsigned int lfsr = 1;
-	// Feedback: XOR bits 0 and 3
-	int feedback = (lfsr ^ (lfsr >> 3)) & 1;
-	// Shift right and insert feedback at bit 16
-	lfsr = (lfsr >> 1) | (feedback << 16);
-	return lfsr;
+	if (g_Config.lfsr_noise) {
+		static unsigned int lfsr = 1;
+		unsigned int r = 0;
+		for (int i = 0; i < 32; ++i) {
+			int feedback = (lfsr ^ (lfsr >> 3)) & 1;
+			lfsr = (lfsr >> 1) | (feedback << 16);
+			r = (r << 1) | (lfsr & 1);
+		}
+		return r;
+	}
+	static unsigned int seed = 1;
+	seed = seed * 1566083941UL + 1;
+	return seed;
 }
 
 // Saturating arithmetic (overflow protection)
@@ -903,7 +1002,7 @@ void OpmFir_Normal(short *p, short *buf0, short *buf1, int *result) {
 
 void	(*OpmFir)(short *, short *, short *, int *) = OpmFir_Normal;
 
-#ifdef _WIN64
+#if defined(_WIN64) || !defined(_MSC_VER)	// MMX inline asm is MSVC x86 only
 void DetectMMX() {
 	OpmFir = OpmFir_Normal;
 }

@@ -1,4 +1,6 @@
 class Pcm8 {
+	NeuralAdpcmEnhancer aiEnh;	// [AI] per-channel neural enhancer
+	int LastStep;				// [AI] ADPCM step used for the last decoded sample
 	int	Scale;		//
 	int Pcm;		// 16bit PCM Data
 	int	Pcm16Prev;	// Previous data for 16bit/8bit PCM
@@ -92,6 +94,8 @@ inline void Pcm8::InitSamprate() {
 	RateCounter = 0;
 }
 inline void Pcm8::Reset() {
+	aiEnh.Reset();
+	LastStep = 16;
 	Scale = 0;
 	Pcm = 0;
 	Pcm16Prev = 0;
@@ -124,7 +128,7 @@ inline int Pcm8::DmaArrayChainSetNextMtcMar() {
 
 		return 1;
 	} 
-	DmaMar = (volatile unsigned char *)((mem0<<24)|(mem1<<16)|(mem2<<8)|(mem3));	// MAR
+	DmaMar = AdrsFromBytes(mem0, mem1, mem2, mem3);	// MAR
 	DmaMtc = (mem4<<8)|(mem5);	// MTC
 
 	if ( DmaMtc == 0 ) {	// MTC == 0 ?
@@ -154,9 +158,9 @@ inline int Pcm8::DmaLinkArrayChainSetNextMtcMar() {
 
 		return 1;
 	}
-	DmaMar = (volatile unsigned char *)((mem0<<24)|(mem1<<16)|(mem2<<8)|(mem3));	// MAR
+	DmaMar = AdrsFromBytes(mem0, mem1, mem2, mem3);	// MAR
 	DmaMtc = (mem4<<8)|(mem5);	// MTC
-	DmaBar = (volatile unsigned char *)((mem6<<24)|(mem7<<16)|(mem8<<8)|(mem9));	// BAR
+	DmaBar = AdrsFromBytes(mem6, mem7, mem8, mem9);	// BAR
 
 	if ( DmaMtc == 0 ) {	// MTC == 0 ?
 
@@ -220,6 +224,7 @@ inline void	Pcm8::adpcm2pcm(unsigned char adpcm) {
 	
 	int	dltL;
 	dltL = dltLTBL[Scale];
+	LastStep = dltL;
 	dltL = (dltL&(adpcm&4?-1:0)) + ((dltL>>1)&(adpcm&2?-1:0)) + ((dltL>>2)&(adpcm&1?-1:0)) + (dltL>>3);
 	int sign = adpcm&8?-1:0;
 	dltL = (dltL^sign)+(sign&1);
@@ -322,6 +327,11 @@ inline int Pcm8::GetPcm() {
 	}
 
 	// Save actual decoded value for HPF filter (before interpolation)
+	// [AI] neural ADPCM enhancement (offline rendering, ADPCM data only)
+	if (needNewSample && g_Config.ai_enhance && g_OfflineRender && PcmKind < 5) {
+		float e = aiEnh.Process((float)(Pcm & (int)0xFFFFFFFC), (float)LastStep, g_Config.ai_strength / 100.0f);
+		InpPcm = (int)lrintf(e * 256.0f);
+	}
 	int InpPcm_for_hpf = InpPcm;
 
 	// Apply linear interpolation (only when new sample is acquired and enabled via environment variable)
@@ -329,17 +339,20 @@ inline int Pcm8::GetPcm() {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
 		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12;
-		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
-		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
+		int frac = (int)(((int64_t)(RateCounter + AdpcmRate) << 16) / sampleInterval);
+		if (frac < 0) frac = 0;
+		if (frac > 0x10000) frac = 0x10000;  // int64: avoid int32 overflow (was garbage)
+		InpPcm = PrevInpPcm + (int)(((int64_t)(InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
 	OutPcm = ((InpPcm_for_hpf << HPF_SHIFT) - (InpPcm_prev << HPF_SHIFT) + HPF_COEFF_A1_22KHZ * OutPcm) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
-	// Saturate OutPcm to prevent overflow when multiplying with volume
-	// Limit to ±80000 which gives ±100000 after volume multiplication (safe margin before final clipping)
-	const int OUT_PCM_LIMIT = 80000;
+	// [fix] Overflow guard only. The former +-80000 clamp was far inside the normal
+	// range (+-(2047<<8) = +-524288) and hard-clipped loud PCM8 samples.
+	// |OutPcm| <= 2^20 keeps ((OutPcm*Volume(<=80))>>4)*TotalVolume(<=256) in int32.
+	const int OUT_PCM_LIMIT = 1 << 20;
 	if (OutPcm > OUT_PCM_LIMIT) {
 		OutPcm = OUT_PCM_LIMIT;
 	} else if (OutPcm < -OUT_PCM_LIMIT) {
@@ -466,8 +479,10 @@ inline int Pcm8::GetPcm62() {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
 		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12*4;
-		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
-		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
+		int frac = (int)(((int64_t)(RateCounter + AdpcmRate) << 16) / sampleInterval);
+		if (frac < 0) frac = 0;
+		if (frac > 0x10000) frac = 0x10000;  // int64: avoid int32 overflow (was garbage)
+		InpPcm = PrevInpPcm + (int)(((int64_t)(InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
 	OutInpPcm = (InpPcm<<9) - (InpPcm_prev<<9) +  OutInpPcm-(OutInpPcm>>5)-(OutInpPcm>>10);

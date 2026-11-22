@@ -1,4 +1,7 @@
+#include "ai_enhance.h"
 class Adpcm {
+	NeuralAdpcmEnhancer aiEnh;	// [AI] per-channel neural enhancer
+	int LastStep;				// [AI] ADPCM step used for the last decoded sample
 	int	Scale;		//
 	int Pcm;		// 16bit PCM Data
 	int	InpPcm,InpPcm_prev,OutPcm;		// 16bit PCM Data for HPF
@@ -16,8 +19,9 @@ class Adpcm {
 	static const int ADPCM_RINGBUF_SIZE = 8192;  // Must be power of 2 for efficient wrapping
 	int RingBuffer[ADPCM_RINGBUF_SIZE];          // Stores decoded PCM samples
 	int RingBufWritePos;                         // Write position (sample count)
-	int RingBufReadPos[4];                       // Read positions for each layer (0=+1oct, 1=normal, 2=-1oct, 3=-2oct)
-	int RingBufRateFrac[4];                      // Fractional position counters (16.16 fixed point)
+	int64_t RingBufPos[4];                       // Read positions per layer, 48.16 fixed point (-1 = not started)
+	int64_t RingBufXPos[4];                      // Old read position during crossfade (re-sync)
+	int RingBufXRemain[4];                       // Remaining crossfade samples (0 = no crossfade)
 
 	inline void adpcm2pcm(unsigned char adpcm);
 	inline void adpcm2pcm_msm6258(unsigned char adpcm);
@@ -129,8 +133,9 @@ inline void Adpcm::Init() {
 	// Initialize ring buffer for multi-channel mode
 	RingBufWritePos = 0;
 	for (int i = 0; i < 4; ++i) {
-		RingBufReadPos[i] = 0;
-		RingBufRateFrac[i] = 0;
+		RingBufPos[i] = -1;
+		RingBufXPos[i] = 0;
+		RingBufXRemain[i] = 0;
 	}
 	for (int i = 0; i < ADPCM_RINGBUF_SIZE; ++i) {
 		RingBuffer[i] = 0;
@@ -142,6 +147,8 @@ inline void Adpcm::InitSamprate() {
 	RateCounter = 0;
 }
 inline void Adpcm::Reset() {
+	aiEnh.Reset();
+	LastStep = 16;
 
 	Scale = 0;
 
@@ -165,8 +172,9 @@ inline void Adpcm::Reset() {
 	// Reset ring buffer for multi-channel mode
 	RingBufWritePos = 0;
 	for (int i = 0; i < 4; ++i) {
-		RingBufReadPos[i] = 0;
-		RingBufRateFrac[i] = 0;
+		RingBufPos[i] = -1;
+		RingBufXPos[i] = 0;
+		RingBufXRemain[i] = 0;
 	}
 
 }
@@ -184,9 +192,9 @@ inline void Adpcm::DmaError(unsigned char errcode) {
 			case 0x11: error_desc = "Software abort error (SAB set while DMA active)"; break;
 			default: error_desc = "Unknown error"; break;
 		}
-		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		unsigned char *mar = DmaRegGetAdrs(&DmaReg[0x0C]);
 		unsigned short mtc = bswapw(*(unsigned short *)&DmaReg[0x0A]);
-		unsigned char *bar = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+		unsigned char *bar = DmaRegGetAdrs(&DmaReg[0x1C]);
 		unsigned short btc = bswapw(*(unsigned short *)&DmaReg[0x1A]);
 		DebugLog(2, "[ADPCM DMA ERROR] errcode=0x%02X: %s\n", errcode, error_desc);
 		DebugLog(2, "  MAR=0x%08X, MTC=%d, BAR=0x%08X, BTC=%d, DmaReg[0x07]=0x%02X\n",
@@ -205,7 +213,7 @@ inline void Adpcm::DmaError(unsigned char errcode) {
 inline void Adpcm::DmaFinish() {
 	// Enhanced DMA completion logging
 	if (g_Config.debug_log_level >= 3) {
-		unsigned char *mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		unsigned char *mar = DmaRegGetAdrs(&DmaReg[0x0C]);
 		unsigned short mtc = bswapw(*(unsigned short *)&DmaReg[0x0A]);
 		DebugLog(3, "[ADPCM DMA FINISH] Transfer complete. MAR=0x%08X, MTC=%d\n",
 			(unsigned int)(uintptr_t)mar, mtc);
@@ -249,7 +257,7 @@ inline int Adpcm::DmaArrayChainSetNextMtcMar() {
 	*(unsigned short *)&DmaReg[0x1A] = bswapw(Btc);
 
 	unsigned char *Bar;
-	Bar = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+	Bar = DmaRegGetAdrs(&DmaReg[0x1C]);
 	int	mem0,mem1,mem2,mem3,mem4,mem5;
 	mem0 = MemRead(Bar++);
 	mem1 = MemRead(Bar++);
@@ -259,7 +267,7 @@ inline int Adpcm::DmaArrayChainSetNextMtcMar() {
 	mem5 = MemRead(Bar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5) == -1) {
 		if (g_Config.debug_log_level >= 2) {
-			unsigned char *bar_orig = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+			unsigned char *bar_orig = DmaRegGetAdrs(&DmaReg[0x1C]);
 			unsigned short btc = bswapw(*(unsigned short *)&DmaReg[0x1A]);
 			DebugLog(2, "[ADPCM DMA ARRAY CHAIN] MemRead failed in array chain at BAR=0x%08X, BTC=%d\n",
 				(unsigned int)(uintptr_t)bar_orig, btc);
@@ -267,7 +275,7 @@ inline int Adpcm::DmaArrayChainSetNextMtcMar() {
 			DmaError(0x0B);		// Bus error (base address/counter)
 		return 1;
 	} 
-	*(unsigned char **)&DmaReg[0x1C] = bswapl(Bar);
+	DmaRegSetAdrs(&DmaReg[0x1C], Bar);
 	DmaReg[0x0C] = mem0;	// MAR
 	DmaReg[0x0D] = mem1;
 	DmaReg[0x0E] = mem2;
@@ -283,7 +291,7 @@ inline int Adpcm::DmaArrayChainSetNextMtcMar() {
 }
 inline int Adpcm::DmaLinkArrayChainSetNextMtcMar() {
 	unsigned char *Bar;
-	Bar = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+	Bar = DmaRegGetAdrs(&DmaReg[0x1C]);
 	if (Bar == (unsigned char *)0) {
 		DmaFinish();
 		FinishCounter = 0;
@@ -304,14 +312,14 @@ inline int Adpcm::DmaLinkArrayChainSetNextMtcMar() {
 	mem9 = MemRead(Bar++);
 	if ((mem0|mem1|mem2|mem3|mem4|mem5|mem6|mem7|mem8|mem9) == -1) {
 		if (g_Config.debug_log_level >= 2) {
-			unsigned char *bar_orig = bswapl(*(unsigned char **)&DmaReg[0x1C]);
+			unsigned char *bar_orig = DmaRegGetAdrs(&DmaReg[0x1C]);
 			DebugLog(2, "[ADPCM DMA LINK ARRAY CHAIN] MemRead failed in link array chain at BAR=0x%08X\n",
 				(unsigned int)(uintptr_t)bar_orig);
 		}
 			DmaError(0x0B);		// Bus error (base address/counter)
 		return 1;
 	} 
-	*(unsigned char **)&DmaReg[0x1C] = bswapl(Bar);
+	DmaRegSetAdrs(&DmaReg[0x1C], Bar);
 	DmaReg[0x0C] = mem0;	// MAR
 	DmaReg[0x0D] = mem1;
 	DmaReg[0x0E] = mem2;
@@ -352,7 +360,7 @@ inline int	Adpcm::DmaGetByte() {
 	
 	{
 		unsigned char *Mar;
-		Mar = bswapl(*(unsigned char **)&DmaReg[0x0C]);
+		Mar = DmaRegGetAdrs(&DmaReg[0x0C]);
 		int mem;
 		mem = MemRead(Mar);
 		if (mem == -1) {
@@ -367,7 +375,7 @@ inline int	Adpcm::DmaGetByte() {
 		DmaLastValue = mem;
 
 		Mar += MACTBL[(DmaReg[0x06]>>2)&3];
-		*(unsigned char **)&DmaReg[0x0C] = bswapl(Mar);
+		DmaRegSetAdrs(&DmaReg[0x0C], Mar);
 	}
 
 	--Mtc;
@@ -479,6 +487,7 @@ inline void	Adpcm::adpcm2pcm_msm6258(unsigned char adpcm) {
 inline void	Adpcm::adpcm2pcm(unsigned char adpcm) {
 	int	dltL;
 	dltL = dltLTBL[Scale];
+	LastStep = dltL;
 	dltL = (dltL&(adpcm&4?-1:0)) + ((dltL>>1)&(adpcm&2?-1:0)) + ((dltL>>2)&(adpcm&1?-1:0)) + (dltL>>3);
 	int sign = adpcm&8?-1:0;
 	dltL = (dltL^sign)+(sign&1);
@@ -545,6 +554,11 @@ inline int Adpcm::GetPcm() {
 	}
 
 	// Save actual decoded value for HPF filter (before interpolation)
+	// [AI] neural ADPCM enhancement (offline rendering, legacy decoder only)
+	if (needNewSample && g_Config.ai_enhance && g_OfflineRender && g_Config.adpcm_mode == 0) {
+		float e = aiEnh.Process((float)(Pcm & (int)0xFFFFFFFC), (float)LastStep, g_Config.ai_strength / 100.0f);
+		InpPcm = (int)lrintf(e * 256.0f);
+	}
 	int InpPcm_for_hpf = InpPcm;
 
 	// Write to ring buffer for multi-channel mode (write before interpolation/filtering)
@@ -557,8 +571,10 @@ inline int Adpcm::GetPcm() {
 		// Interpolate at frac = RateCounter / (15625*12) ratio (16-bit fixed point)
 		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12;
-		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
-		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
+		int frac = (int)(((int64_t)(RateCounter + AdpcmRate) << 16) / sampleInterval);
+		if (frac < 0) frac = 0;
+		if (frac > 0x10000) frac = 0x10000;  // int64: avoid int32 overflow (was garbage)
+		InpPcm = PrevInpPcm + (int)(((int64_t)(InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
@@ -568,44 +584,18 @@ inline int Adpcm::GetPcm() {
 	OutPcm = (hpf_diff + hpf_feedback) >> HPF_SHIFT;
 	InpPcm_prev = InpPcm_for_hpf;  // Save actual decoded value for next iteration
 
-	// Prevent HPF filter oscillation by resetting filter state when output saturates
-	// When OutPcm reaches saturation level (±70000), the feedback term becomes huge
-	// (459 * 70000 / 512 = 62,695), causing permanent oscillation and beep artifacts.
-	// Solution: Detect consecutive saturation and aggressively reset to break feedback loop.
-	const int OUT_PCM_LIMIT = 70000;
-	const int OUT_PCM_RESET_THRESHOLD = 60000;  // Lowered from 65000 to catch oscillation earlier
-	const int OUT_PCM_HARD_THRESHOLD = 50000;   // If consecutive saturation occurs, use stricter limit
-
-	// Check if filter output is approaching saturation
-	int abs_OutPcm = (OutPcm >= 0) ? OutPcm : -OutPcm;
-	if (abs_OutPcm > OUT_PCM_RESET_THRESHOLD) {
-		SaturationCounter++;
-
-		// If consecutive saturation detected (2+ samples in a row), aggressively reset
-		if (SaturationCounter >= 2) {
-			// Complete filter state reset to break oscillation
-			OutPcm = 0;           // Reset to zero (most aggressive)
-			InpPcm_prev = 0;      // Also reset filter history
-			SaturationCounter = 0; // Reset counter after intervention
-		} else {
-			// Single saturation - soft clamp to limit instead of hard jump
-			if (OutPcm > OUT_PCM_LIMIT) OutPcm = OUT_PCM_LIMIT;
-			if (OutPcm < -OUT_PCM_LIMIT) OutPcm = -OUT_PCM_LIMIT;
-		}
-	} else {
-		// Normal operation - clear saturation counter
-		SaturationCounter = 0;
-	}
+	// [fix] The HPF above is a stable 1st-order filter (pole 459/512 < 1); it cannot
+	// oscillate. The former "oscillation prevention" (reset when |OutPcm| > 60000)
+	// and the final clamp at +-40000 assumed a much smaller signal range: the
+	// normal range here is +-(2047<<8) = +-524288 (see "retval" comment), so loud
+	// ADPCM was reset every sample / hard-clipped -> heavily distorted, quiet,
+	// noise-like output. Restored the original behaviour; only an overflow guard
+	// far outside the normal range remains.
+	const int OUT_PCM_GUARD = 1 << 21;
+	if (OutPcm > OUT_PCM_GUARD) OutPcm = OUT_PCM_GUARD;
+	else if (OutPcm < -OUT_PCM_GUARD) OutPcm = -OUT_PCM_GUARD;
 
 	int result = (OutPcm*TotalVolume)>>8;
-
-	// Saturate final result to prevent clipping and beep artifacts in downstream mixer
-	const int RESULT_LIMIT = 40000;
-	if (result > RESULT_LIMIT) {
-		result = RESULT_LIMIT;
-	} else if (result < -RESULT_LIMIT) {
-		result = -RESULT_LIMIT;
-	}
 
 	return result;
 }
@@ -664,8 +654,10 @@ inline int Adpcm::GetPcm62() {
 		// Interpolate at frac = RateCounter / (15625*12*4) ratio (16-bit fixed point)
 		// Note: RateCounter is now 0 or positive after while loop, so add back AdpcmRate
 		int sampleInterval = 15625*12*4;
-		int frac = ((RateCounter + AdpcmRate) << 16) / sampleInterval;
-		InpPcm = PrevInpPcm + (((InpPcm - PrevInpPcm) * frac) >> 16);
+		int frac = (int)(((int64_t)(RateCounter + AdpcmRate) << 16) / sampleInterval);
+		if (frac < 0) frac = 0;
+		if (frac > 0x10000) frac = 0x10000;  // int64: avoid int32 overflow (was garbage)
+		InpPcm = PrevInpPcm + (int)(((int64_t)(InpPcm - PrevInpPcm) * frac) >> 16);
 	}
 
 	// Apply HPF filter (using actual decoded value, not interpolated value)
@@ -743,34 +735,77 @@ inline void Adpcm::WriteToRingBuffer(int sample) {
 
 // Read from ring buffer with resampling for octave layering
 // layer: 0=+1oct (2x speed), 1=normal (1x speed), 2=-1oct (0.5x speed), 3=-2oct (0.25x speed)
-// rateIncrement: Fixed point 16.16 increment per sample (0x20000=2.0, 0x10000=1.0, 0x08000=0.5, 0x04000=0.25)
+// rateIncrement: speed relative to the ORIGINAL ADPCM data (16.16: 0x20000=2.0, 0x08000=0.5 ...)
+//
+// Called once per 15625Hz output tick. The ring buffer is written at the ADPCM
+// sample rate (3.9k-15.6kHz), so the read step must be scaled by AdpcmRate.
+// (Previously it was not, so read pointers raced ahead of / fell far behind the
+//  write pointer and read overwritten data -> random-noise-like output.)
+// A pitch-shifted reader drifts away from the writer by design, so when the
+// distance leaves the safe window, the reader jumps back into the window and
+// the old/new positions are crossfaded to avoid clicks.
 inline int Adpcm::ReadFromRingBuffer(int layer, int rateIncrement) {
-	// Check if we have enough data in the buffer
-	int available = RingBufWritePos - RingBufReadPos[layer];
-	if (available < 2) {
-		// Not enough data for interpolation, return silence
+	const int64_t ONE = 0x10000;
+	const int XFADE_LEN = 256;                 // crossfade length (output ticks, ~16ms)
+	const int64_t LAG_MIN_SLOW = 2 * ONE;      // slow layers: need 2 samples for interpolation
+	const int64_t LAG_MAX_SLOW = 4096 * ONE;   // slow layers: re-sync before data is overwritten
+	const int64_t LAG_MIN_FAST = 768 * ONE;    // fast layers: re-sync before catching up with writer
+	const int64_t LAG_RESET_SLOW = 64 * ONE;
+	const int64_t LAG_RESET_FAST = 3072 * ONE;
+
+	int64_t writeFix = (int64_t)RingBufWritePos << 16;
+	if (RingBufWritePos < 4) return 0;
+
+	// Step per output tick = speed * (ADPCM rate / 15625)
+	int64_t inc = ((int64_t)rateIncrement * AdpcmRate) / (15625*12);
+	int fast = (rateIncrement > (int)ONE);
+
+	if (RingBufPos[layer] < 0) {
+		RingBufPos[layer] = writeFix - (fast ? LAG_RESET_FAST : LAG_RESET_SLOW);
+		if (RingBufPos[layer] < 0) RingBufPos[layer] = 0;
+		RingBufXRemain[layer] = 0;
+	}
+
+	int64_t lag = writeFix - RingBufPos[layer];
+	if (RingBufXRemain[layer] == 0) {
+		int resync = 0;
+		int64_t newLag = 0;
+		if (fast) {
+			if (lag < LAG_MIN_FAST) { resync = 1; newLag = LAG_RESET_FAST; }
+		} else {
+			if (lag > LAG_MAX_SLOW) { resync = 1; newLag = LAG_RESET_SLOW; }
+		}
+		if (lag > (int64_t)(ADPCM_RINGBUF_SIZE - 512) * ONE) { resync = 1; newLag = fast ? LAG_RESET_FAST : LAG_RESET_SLOW; }
+		if (resync && writeFix - newLag >= 0) {
+			RingBufXPos[layer] = RingBufPos[layer];
+			RingBufXRemain[layer] = XFADE_LEN;
+			RingBufPos[layer] = writeFix - newLag;
+			lag = newLag;
+		}
+	}
+
+	// Slow layer caught up (ADPCM paused / just started): output silence
+	if (lag < LAG_MIN_SLOW) {
 		return 0;
 	}
 
-	// Get integer and fractional parts of read position
-	int readPos = RingBufReadPos[layer];
-	int frac = RingBufRateFrac[layer];
+	#define RB_READ(pos) ( RingBuffer[(int)((pos) >> 16) & (ADPCM_RINGBUF_SIZE - 1)] + \
+		(int)((((int64_t)RingBuffer[(int)(((pos) >> 16) + 1) & (ADPCM_RINGBUF_SIZE - 1)] - \
+		        RingBuffer[(int)((pos) >> 16) & (ADPCM_RINGBUF_SIZE - 1)]) * ((pos) & 0xFFFF)) >> 16) )
 
-	// Linear interpolation between two samples
-	int sample1 = RingBuffer[readPos & (ADPCM_RINGBUF_SIZE - 1)];
-	int sample2 = RingBuffer[(readPos + 1) & (ADPCM_RINGBUF_SIZE - 1)];
-	int interpolated = sample1 + (((sample2 - sample1) * frac) >> 16);
+	int interpolated = RB_READ(RingBufPos[layer]);
 
-	// Advance fractional position
-	frac += rateIncrement;
-	while (frac >= 0x10000) {
-		frac -= 0x10000;
-		readPos++;
+	if (RingBufXRemain[layer] > 0) {
+		int64_t xlag = writeFix - RingBufXPos[layer];
+		int old = (xlag >= LAG_MIN_SLOW && xlag < (int64_t)(ADPCM_RINGBUF_SIZE - 2) * ONE) ? RB_READ(RingBufXPos[layer]) : 0;
+		int k = RingBufXRemain[layer];  // XFADE_LEN..1
+		interpolated = (int)(((int64_t)interpolated * (XFADE_LEN - k) + (int64_t)old * k) / XFADE_LEN);
+		RingBufXPos[layer] += inc;
+		RingBufXRemain[layer]--;
 	}
+	#undef RB_READ
 
-	// Update position
-	RingBufReadPos[layer] = readPos;
-	RingBufRateFrac[layer] = frac;
+	RingBufPos[layer] += inc;
 
 	return interpolated;
 }
